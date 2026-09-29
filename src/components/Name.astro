@@ -1,0 +1,237 @@
+---
+const name = 'AsgeirJacobsen.';
+---
+
+<h1 class="name" data-name={name}>
+	<span class="sr-only">Asgeir Jacobsen</span>
+	<canvas aria-hidden="true"></canvas>
+</h1>
+
+<style>
+	h1 {
+		margin: 0;
+		width: 100%;
+	}
+
+	canvas {
+		display: block;
+	}
+
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+</style>
+
+<script>
+	const FONT_FAMILY = '"Inter Tight", "Helvetica Neue", Arial, sans-serif';
+	const FONT_WEIGHT = 600;
+	const TRACKING = -0.055; // em
+	const GLYPHS = 'abcdefghijklmnopqrstuvwxyz0123456789#%&*+=-/<>';
+	const COLOR = '#e9c85b';
+	const SCRAMBLE_COLOR = 'rgba(246, 236, 200, 0.55)';
+
+	// Motion: illustrative, low-frequency (once per page load)
+	const SWEEP_MS = 900; // wavefront travel, ease-out-quart
+	const SETTLE_MIN = 220;
+	const SETTLE_JITTER = 380;
+	const HOVER_RADIUS = 48;
+
+	const h1 = document.querySelector<HTMLHeadingElement>('h1.name')!;
+	const canvas = h1.querySelector('canvas')!;
+	const ctx = canvas.getContext('2d')!;
+	const text = h1.dataset.name!;
+	const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+	let cells: {
+		x: Float32Array;
+		y: Float32Array;
+		appear: Float32Array;
+		settle: Float32Array;
+		char: Uint8Array;
+		scrambleUntil: Float64Array;
+		count: number;
+	};
+	let cellH = 8;
+	let cellW = 5;
+	let mask: HTMLCanvasElement;
+	let fontSize = 100;
+	let glyphX: number[] = [];
+	let baseline = 0;
+	let start = 0;
+	let tick = 0;
+
+	const rand = (n: number) => (Math.random() * n) | 0;
+	const font = (size: number) => `${FONT_WEIGHT} ${size}px ${FONT_FAMILY}`;
+
+	function layoutGlyphs(size: number) {
+		ctx.font = font(size);
+		ctx.textAlign = 'left';
+		ctx.textBaseline = 'alphabetic';
+		const track = TRACKING * size;
+		// Prefix widths keep the font's kerning while applying tight tracking
+		glyphX = [...text].map((_, i) => ctx.measureText(text.slice(0, i)).width + i * track);
+		const last = text.length - 1;
+		return glyphX[last] + ctx.measureText(text[last]).width;
+	}
+
+	function drawName(target: CanvasRenderingContext2D) {
+		target.font = font(fontSize);
+		target.textBaseline = 'alphabetic';
+		[...text].forEach((ch, i) => target.fillText(ch, glyphX[i], baseline));
+	}
+
+	function cellTouchesGlyph(alpha: Uint8ClampedArray, w: number, h: number, x0: number, y0: number) {
+		for (let y = y0; y < Math.min(y0 + cellH, h); y += 2) {
+			for (let x = x0; x < Math.min(x0 + cellW, w); x += 2) {
+				if (alpha[(y * w + x) * 4 + 3] > 0) return true;
+			}
+		}
+		return false;
+	}
+
+	function build(animate: boolean) {
+		const width = h1.clientWidth;
+		fontSize = (100 * width) / layoutGlyphs(100);
+		layoutGlyphs(fontSize);
+
+		const m = ctx.measureText(text);
+		const ascent = m.actualBoundingBoxAscent;
+		const descent = m.actualBoundingBoxDescent;
+		baseline = Math.ceil(ascent);
+		const height = Math.ceil(ascent + descent);
+
+		const dpr = window.devicePixelRatio || 1;
+		canvas.width = Math.round(width * dpr);
+		canvas.height = Math.round(height * dpr);
+		canvas.style.width = `${width}px`;
+		canvas.style.height = `${height}px`;
+		ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+		// Rasterise the name once as a mask, then sample it on a character grid
+		mask = document.createElement('canvas');
+		mask.width = width;
+		mask.height = height;
+		const mctx = mask.getContext('2d', { willReadFrequently: true })!;
+		drawName(mctx);
+		const alpha = mctx.getImageData(0, 0, width, height).data;
+
+		cellH = Math.max(5, Math.round(fontSize / 25));
+		cellW = Math.max(3, Math.round(cellH * 0.6));
+		const xs: number[] = [];
+		const ys: number[] = [];
+		// Keep every cell that touches the glyphs; the final clip trims the edges
+		for (let y = 0; y < height; y += cellH) {
+			for (let x = 0; x < width; x += cellW) {
+				if (cellTouchesGlyph(alpha, width, height, x, y)) {
+					xs.push(x);
+					ys.push(y);
+				}
+			}
+		}
+
+		const count = xs.length;
+		cells = {
+			x: Float32Array.from(xs),
+			y: Float32Array.from(ys),
+			appear: new Float32Array(count),
+			settle: new Float32Array(count),
+			char: new Uint8Array(count),
+			scrambleUntil: new Float64Array(count),
+			count,
+		};
+		for (let i = 0; i < count; i++) {
+			// Wavefront follows ease-out-quart: fast start, soft landing on the right
+			const xn = xs[i] / width;
+			const appear = animate ? SWEEP_MS * (1 - Math.pow(1 - xn, 0.25)) + Math.random() * 120 : 0;
+			cells.appear[i] = appear;
+			cells.settle[i] = animate ? appear + SETTLE_MIN + Math.random() * SETTLE_JITTER : 0;
+			cells.char[i] = rand(GLYPHS.length);
+		}
+		start = performance.now();
+	}
+
+	function draw(now: number) {
+		const t = now - start;
+		const { x, y, appear, settle, char, scrambleUntil, count } = cells;
+		const width = canvas.clientWidth;
+		const height = canvas.clientHeight;
+		const introDone = t > SWEEP_MS + 120 + SETTLE_MIN + SETTLE_JITTER;
+		tick++;
+
+		ctx.clearRect(0, 0, width, height);
+		ctx.font = `700 ${cellH * 1.15}px ui-monospace, "SF Mono", Menlo, Consolas, monospace`;
+		ctx.textAlign = 'center';
+		ctx.textBaseline = 'middle';
+		const cx = cellW / 2;
+		const cy = cellH / 2 + 0.5;
+
+		// Ambient life: a handful of characters re-scramble now and then
+		if (introDone && !reduceMotion && tick % 6 === 0) {
+			for (let k = 0; k < Math.max(1, count / 900); k++) {
+				scrambleUntil[rand(count)] = now + 150 + Math.random() * 350;
+			}
+		}
+
+		const reroll = tick % 3 === 0;
+		const isSettled = (i: number) => t >= settle[i] && now >= scrambleUntil[i];
+
+		// Settled cells: yellow characters, nothing behind them
+		ctx.fillStyle = COLOR;
+		for (let i = 0; i < count; i++) {
+			if (isSettled(i)) ctx.fillText(GLYPHS[char[i]], x[i] + cx, y[i] + cy);
+		}
+
+		// Scrambling cells: paler, cycling characters
+		ctx.fillStyle = SCRAMBLE_COLOR;
+		for (let i = 0; i < count; i++) {
+			if (t >= appear[i] && !isSettled(i)) {
+				if (reroll) char[i] = rand(GLYPHS.length);
+				ctx.fillText(GLYPHS[char[i]], x[i] + cx, y[i] + cy);
+			}
+		}
+
+		// Clip everything to the exact letterforms
+		ctx.globalCompositeOperation = 'destination-in';
+		ctx.drawImage(mask, 0, 0, width, height);
+		ctx.globalCompositeOperation = 'source-over';
+
+		if (!reduceMotion) requestAnimationFrame(draw);
+	}
+
+	canvas.addEventListener('pointermove', (e) => {
+		if (reduceMotion || !cells) return;
+		const rect = canvas.getBoundingClientRect();
+		const px = e.clientX - rect.left;
+		const py = e.clientY - rect.top;
+		const now = performance.now();
+		const r2 = HOVER_RADIUS * HOVER_RADIUS;
+		for (let i = 0; i < cells.count; i++) {
+			const dx = cells.x[i] + cellW / 2 - px;
+			const dy = cells.y[i] + cellH / 2 - py;
+			if (dx * dx + dy * dy < r2) cells.scrambleUntil[i] = now + 180 + Math.random() * 260;
+		}
+	});
+
+	let resizeTimer = 0;
+	let lastWidth = 0;
+	new ResizeObserver(() => {
+		if (h1.clientWidth === lastWidth) return;
+		clearTimeout(resizeTimer);
+		resizeTimer = window.setTimeout(() => {
+			lastWidth = h1.clientWidth;
+			build(false);
+			if (reduceMotion) draw(performance.now());
+		}, 120);
+	}).observe(h1);
+
+	Promise.allSettled([document.fonts.load(font(100)), document.fonts.ready]).then(() => {
+		lastWidth = h1.clientWidth;
+		build(!reduceMotion);
+		requestAnimationFrame(draw);
+	});
+</script>
