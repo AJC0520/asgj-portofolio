@@ -3,6 +3,7 @@
 // Run once (or whenever you want to refresh the map): node scripts/build-map.mjs
 
 import { writeFile } from 'node:fs/promises';
+import { encodePath } from './svg-path.mjs';
 
 // Tromsø city centre, Tromsøysundet and the Tromsdalen side of the bridge
 const BBOX = { south: 69.628, west: 18.88, north: 69.672, east: 19.03 };
@@ -56,32 +57,31 @@ const project = ({ lat, lon }) => [
 ];
 
 // Drop points closer than ~1 unit to the previous one: invisible at this opacity, halves the file
-function toPath(points) {
-	let d = '';
-	let last = null;
+function simplify(points) {
+	const kept = [];
 	points.map(project).forEach(([x, y], i, all) => {
+		const last = kept.at(-1);
 		const isEnd = i === all.length - 1;
 		if (last && !isEnd && Math.hypot(x - last[0], y - last[1]) < 1.2) return;
-		d += `${last ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`;
-		last = [x, y];
+		kept.push([x, y]);
 	});
-	return d;
+	return kept;
 }
 
 const major = /^(motorway|trunk|primary|secondary)$/;
 const layers = { coast: [], major: [], minor: [] };
 for (const way of elements) {
 	if (!way.geometry?.length) continue;
-	const d = toPath(way.geometry);
-	if (way.tags?.natural === 'coastline') layers.coast.push(d);
-	else if (major.test(way.tags?.highway)) layers.major.push(d);
-	else layers.minor.push(d);
+	const points = simplify(way.geometry);
+	if (way.tags?.natural === 'coastline') layers.coast.push(points);
+	else if (major.test(way.tags?.highway)) layers.major.push(points);
+	else layers.minor.push(points);
 }
 
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${HEIGHT}" fill="none" stroke="#f4efe1" stroke-linecap="round" stroke-linejoin="round">
-<path stroke-width="0.6" d="${layers.minor.join('')}"/>
-<path stroke-width="1.4" d="${layers.major.join('')}"/>
-<path stroke-width="1.8" d="${layers.coast.join('')}"/>
+<path stroke-width="0.6" d="${encodePath(layers.minor)}"/>
+<path stroke-width="1.4" d="${encodePath(layers.major)}"/>
+<path stroke-width="1.8" d="${encodePath(layers.coast)}"/>
 </svg>
 `;
 

@@ -1,4 +1,5 @@
 ---
+import { Font } from 'astro:assets';
 import CursorBlob from '../components/CursorBlob.astro';
 
 interface Props {
@@ -23,12 +24,7 @@ const ogImage = Astro.site ? new URL('/og.png', Astro.site).href : undefined;
 		<meta name="viewport" content="width=device-width" />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<link rel="icon" href="/favicon.ico" />
-		<link rel="preconnect" href="https://fonts.googleapis.com" />
-		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-		<link
-			rel="stylesheet"
-			href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600&display=swap"
-		/>
+		<Font cssVariable="--font-inter-tight" preload />
 		<meta name="generator" content={Astro.generator} />
 		<title>{title}</title>
 		<meta name="description" content={description} />

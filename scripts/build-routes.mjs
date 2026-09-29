@@ -3,6 +3,7 @@
 //   node scripts/build-routes.mjs
 
 import { readFile, writeFile } from 'node:fs/promises';
+import { decodePath, encodePath } from './svg-path.mjs';
 
 const ROUTES = 90;
 const MIN_LENGTH = 450; // map units (~3 m each): shorter drives read as a blip
@@ -11,19 +12,11 @@ const MAX_LENGTH = 1600;
 const svg = await readFile(new URL('../public/tromso-map.svg', import.meta.url), 'utf8');
 const viewBox = svg.match(/viewBox="([^"]+)"/)[1];
 
-// Streets and main roads only (not the coastline); each way starts with its own "M"
+// Streets and main roads only (not the coastline); each way is its own subpath
 const layers = [...svg.matchAll(/<path stroke-width="([\d.]+)" d="([^"]+)"\/>/g)];
 const ways = layers
 	.filter(([, width]) => width !== '1.8')
-	.flatMap(([, width, d]) =>
-		d
-			.split('M')
-			.filter(Boolean)
-			.map((segment) => ({
-				major: width === '1.4',
-				points: segment.split('L').map((pair) => pair.trim().split(' ').map(Number)),
-			})),
-	)
+	.flatMap(([, width, d]) => decodePath(d).map((points) => ({ major: width === '1.4', points })))
 	.filter((way) => way.points.length > 1);
 
 const key = ([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`;
@@ -79,7 +72,7 @@ for (let attempt = 0; routes.length < ROUTES && attempt < ROUTES * 40; attempt++
 	const total = length(route);
 	if (total < MIN_LENGTH) continue;
 	routes.push({
-		d: 'M' + route.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join('L'),
+		d: encodePath([route]),
 		length: Math.round(total),
 	});
 }

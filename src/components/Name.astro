@@ -28,7 +28,8 @@ const name = 'AsgeirJacobsen.';
 </style>
 
 <script>
-	const FONT_FAMILY = '"Inter Tight", "Helvetica Neue", Arial, sans-serif';
+	// Self-hosted font's (hashed) family name + fallbacks, from the Fonts API variable
+	const FONT_FAMILY = getComputedStyle(document.documentElement).getPropertyValue('--font-inter-tight').trim();
 	const FONT_WEIGHT = 600;
 	const TRACKING = -0.055; // em
 	const GLYPHS = 'abcdefghijklmnopqrstuvwxyz0123456789#%&*+=-/<>';
@@ -59,6 +60,8 @@ const name = 'AsgeirJacobsen.';
 	let cellH = 8;
 	let cellW = 5;
 	let mask: HTMLCanvasElement;
+	let cssWidth = 0;
+	let cssHeight = 0;
 	let fontSize = 100;
 	let glyphX: number[] = [];
 	let baseline = 0;
@@ -85,10 +88,42 @@ const name = 'AsgeirJacobsen.';
 		[...text].forEach((ch, i) => target.fillText(ch, glyphX[i], baseline));
 	}
 
-	function cellTouchesGlyph(alpha: Uint8ClampedArray, w: number, h: number, x0: number, y0: number) {
-		for (let y = y0; y < Math.min(y0 + cellH, h); y += 2) {
-			for (let x = x0; x < Math.min(x0 + cellW, w); x += 2) {
-				if (alpha[(y * w + x) * 4 + 3] > 0) return true;
+	// Pixels per CSS pixel actually shown on screen: screen density × pinch-zoom.
+	// Rendering at this scale keeps the name crisp when zoomed in; capped so the bitmap stays reasonable.
+	const MAX_PIXELS = 24_000_000;
+	function renderScale() {
+		const scale = (window.devicePixelRatio || 1) * (window.visualViewport?.scale ?? 1);
+		const fit = Math.sqrt(MAX_PIXELS / Math.max(1, cssWidth * cssHeight));
+		return Math.max(1, Math.min(scale, 6, fit));
+	}
+
+	// Size the canvas and re-rasterise the letter mask at the current render scale.
+	// Cheap enough to run on zoom without touching the character layout or animation state.
+	function rasterize() {
+		const scale = renderScale();
+		canvas.width = Math.round(cssWidth * scale);
+		canvas.height = Math.round(cssHeight * scale);
+		canvas.style.width = `${cssWidth}px`;
+		canvas.style.height = `${cssHeight}px`;
+		ctx.setTransform(scale, 0, 0, scale, 0, 0);
+
+		mask = document.createElement('canvas');
+		mask.width = canvas.width;
+		mask.height = canvas.height;
+		const mctx = mask.getContext('2d', { willReadFrequently: true })!;
+		mctx.setTransform(scale, 0, 0, scale, 0, 0);
+		drawName(mctx);
+		return { mctx, scale };
+	}
+
+	function cellTouchesGlyph(alpha: Uint8ClampedArray, scale: number, x0: number, y0: number) {
+		const w = mask.width;
+		const h = mask.height;
+		for (let y = y0; y < Math.min(y0 + cellH, cssHeight); y += 2) {
+			for (let x = x0; x < Math.min(x0 + cellW, cssWidth); x += 2) {
+				const px = Math.min(w - 1, Math.floor(x * scale));
+				const py = Math.min(h - 1, Math.floor(y * scale));
+				if (alpha[(py * w + px) * 4 + 3] > 0) return true;
 			}
 		}
 		return false;
@@ -104,21 +139,12 @@ const name = 'AsgeirJacobsen.';
 		const descent = m.actualBoundingBoxDescent;
 		baseline = Math.ceil(ascent);
 		const height = Math.ceil(ascent + descent);
+		cssWidth = width;
+		cssHeight = height;
 
-		const dpr = window.devicePixelRatio || 1;
-		canvas.width = Math.round(width * dpr);
-		canvas.height = Math.round(height * dpr);
-		canvas.style.width = `${width}px`;
-		canvas.style.height = `${height}px`;
-		ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-		// Rasterise the name once as a mask, then sample it on a character grid
-		mask = document.createElement('canvas');
-		mask.width = width;
-		mask.height = height;
-		const mctx = mask.getContext('2d', { willReadFrequently: true })!;
-		drawName(mctx);
-		const alpha = mctx.getImageData(0, 0, width, height).data;
+		// Rasterise the name as a mask, then sample it on a character grid
+		const { mctx, scale } = rasterize();
+		const alpha = mctx.getImageData(0, 0, mask.width, mask.height).data;
 
 		cellH = Math.max(5, Math.round(fontSize / 25));
 		cellW = Math.max(3, Math.round(cellH * 0.6));
@@ -127,7 +153,7 @@ const name = 'AsgeirJacobsen.';
 		// Keep every cell that touches the glyphs; the final clip trims the edges
 		for (let y = 0; y < height; y += cellH) {
 			for (let x = 0; x < width; x += cellW) {
-				if (cellTouchesGlyph(alpha, width, height, x, y)) {
+				if (cellTouchesGlyph(alpha, scale, x, y)) {
 					xs.push(x);
 					ys.push(y);
 				}
@@ -158,8 +184,8 @@ const name = 'AsgeirJacobsen.';
 	function draw(now: number) {
 		const t = now - start;
 		const { x, y, appear, settle, char, scrambleUntil, count } = cells;
-		const width = canvas.clientWidth;
-		const height = canvas.clientHeight;
+		const width = cssWidth;
+		const height = cssHeight;
 		const introDone = t > SWEEP_MS + 120 + SETTLE_MIN + SETTLE_JITTER;
 		tick++;
 
@@ -252,6 +278,30 @@ const name = 'AsgeirJacobsen.';
 			draw(performance.now()); // repaint once at the new size, then continue only if visible
 		}, 120);
 	}).observe(h1);
+
+	// Zoom (pinch, or a density change from browser zoom / moving to another screen):
+	// re-render the pixels at the new scale, keep the characters and their state
+	let zoomTimer = 0;
+	function onZoom() {
+		if (!cells) return;
+		clearTimeout(zoomTimer);
+		zoomTimer = window.setTimeout(() => {
+			if (Math.abs(renderScale() - canvas.width / cssWidth) < 0.01) return;
+			rasterize();
+			if (!running) draw(performance.now());
+		}, 150);
+	}
+	window.visualViewport?.addEventListener('resize', onZoom);
+	(function watchDensity() {
+		matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`).addEventListener(
+			'change',
+			() => {
+				onZoom();
+				watchDensity();
+			},
+			{ once: true },
+		);
+	})();
 
 	Promise.allSettled([document.fonts.load(font(100)), document.fonts.ready]).then(() => {
 		lastWidth = h1.clientWidth;
