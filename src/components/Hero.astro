@@ -1,24 +1,146 @@
 ---
 import Name from './Name.astro';
+
+// Placeholder content — swap for the real thing
+const intro = 'Bachelor student in Informatics at NTNU.';
+const links = [
+	{ label: 'Work', href: '#' },
+	{ label: 'About', href: '#' },
+	{ label: 'Contact', href: '#' },
+];
 ---
 
 <section id="hero">
-	<div class="scroll-cue" aria-hidden="true">
-		<span>Scroll to read more about me</span>
-		<span class="track"><span class="pulse"></span></span>
+	<header class="top">
+		<span class="mark">AJ.</span>
+		<nav aria-label="Main">
+			{links.map((link) => <a href={link.href}>{link.label}</a>)}
+		</nav>
+	</header>
+
+	<div class="meta">
+		<p class="intro">{intro}</p>
 	</div>
-	<Name />
+
+	<div class="bottom">
+		<div class="scroll-cue" aria-hidden="true">
+			<span>Scroll to read more about me</span>
+			<span class="track"><span class="pulse"></span></span>
+		</div>
+
+		<Name />
+	</div>
 </section>
 
 <style>
 	#hero {
+		--cream: #f4efe1;
+		--yellow: #e9c85b;
+		--ease-out-quart: cubic-bezier(0.165, 0.84, 0.44, 1);
+		--gutter: 16px;
+		--columns: 3;
+		--column-line: rgba(244, 239, 225, 0.02);
+
+		position: relative;
+		isolation: isolate;
 		min-height: 100dvh;
 		display: flex;
 		flex-direction: column;
-		justify-content: flex-end;
-		gap: 24px;
-		padding: 0 16px 16px;
+		padding: var(--gutter);
 		box-sizing: border-box;
+		color: var(--cream);
+		font-family: 'Inter Tight', 'Helvetica Neue', Arial, sans-serif;
+		font-weight: 600;
+	}
+
+	/* Background layer 1: hairline column grid, fading out toward the top so the name sits on the structure */
+	#hero::before {
+		content: '';
+		position: absolute;
+		inset: 0 var(--gutter);
+		z-index: -1;
+		background-image: linear-gradient(to right, var(--column-line) 1px, transparent 1px);
+		background-size: calc(100% / var(--columns)) 100%;
+		border-right: 1px solid var(--column-line);
+		mask-image: linear-gradient(to bottom, transparent, #000 45%);
+		pointer-events: none;
+	}
+
+	/* Background layer 2: fine static grain so the dark reads as a surface, not a void */
+	#hero::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		z-index: -1;
+		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.5 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+		opacity: 0.05;
+		pointer-events: none;
+	}
+
+	@media (max-width: 640px) {
+		#hero {
+			--columns: 3;
+		}
+	}
+
+	p {
+		margin: 0;
+	}
+
+	/* Top bar */
+	.top {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		font-size: 14px;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
+
+	a {
+		color: inherit;
+		text-decoration: none;
+	}
+
+	.mark {
+		font-size: 18px;
+		letter-spacing: -0.02em;
+		color: var(--yellow);
+	}
+
+	nav {
+		display: flex;
+		gap: 28px;
+	}
+
+	nav a {
+		transition: color 150ms ease;
+	}
+
+	@media (hover: hover) {
+		nav a:hover {
+			color: var(--yellow);
+		}
+	}
+
+	/* Intro */
+	.meta {
+		margin-top: clamp(40px, 8vh, 96px);
+	}
+
+	.intro {
+		max-width: 22ch;
+		font-size: clamp(20px, 2vw, 28px);
+		line-height: 1.15;
+		letter-spacing: -0.02em;
+	}
+
+	/* Bottom block: cue and name */
+	.bottom {
+		margin-top: auto;
+		display: flex;
+		flex-direction: column;
+		gap: 20px;
 	}
 
 	.scroll-cue {
@@ -27,14 +149,12 @@ import Name from './Name.astro';
 		display: flex;
 		align-items: center;
 		gap: 14px;
-		font-family: 'Inter Tight', 'Helvetica Neue', Arial, sans-serif;
 		font-size: 16px;
-		font-weight: 600;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
-		color: #e9c85b;
+		color: var(--yellow);
 		/* Exit: fast, ease-out */
-		transition: opacity 180ms cubic-bezier(0.165, 0.84, 0.44, 1);
+		transition: opacity 180ms var(--ease-out-quart);
 	}
 
 	:global([data-scrolled]) .scroll-cue {
@@ -56,7 +176,7 @@ import Name from './Name.astro';
 		top: 0;
 		width: 100%;
 		height: 40%;
-		background: #e9c85b;
+		background: var(--yellow);
 		animation: travel 1600ms cubic-bezier(0.645, 0.045, 0.355, 1) infinite;
 	}
 
@@ -66,6 +186,17 @@ import Name from './Name.astro';
 		}
 		to {
 			transform: translateY(250%);
+		}
+	}
+
+	@media (max-width: 640px) {
+		nav {
+			gap: 16px;
+		}
+
+		.scroll-cue {
+			margin-right: 0;
+			font-size: 13px;
 		}
 	}
 
