@@ -1,4 +1,5 @@
 ---
+import ActivityGrid from './ActivityGrid.astro';
 import Name from './Name.astro';
 
 // Placeholder content — swap for the real thing
@@ -32,6 +33,8 @@ const profiles = [
 ---
 
 <section id="hero">
+	<ActivityGrid />
+
 	<header class="top">
 		<span class="mark">AJ.</span>
 		<div class="top-right">
@@ -43,7 +46,7 @@ const profiles = [
 				{
 					profiles.map((profile) => (
 						<li>
-							<a href={profile.href} aria-label={profile.label} title={profile.label}>
+							<a href={profile.href} aria-label={profile.label} title={profile.label} data-profile={profile.label.toLowerCase()}>
 								<svg viewBox="0 0 24 24" aria-hidden="true">
 									<path d={profile.path} fill-rule="evenodd" />
 								</svg>
@@ -288,4 +291,15 @@ const profiles = [
 	const update = () => document.documentElement.toggleAttribute('data-scrolled', window.scrollY > 8);
 	window.addEventListener('scroll', update, { passive: true });
 	update();
+
+	// Easter egg: the GitHub icon reveals the activity grid behind the hero
+	const hero = document.querySelector<HTMLElement>('#hero')!;
+	const github = hero.querySelector<HTMLElement>('[data-profile="github"]');
+	if (github) {
+		const show = (on: boolean) => () => hero.toggleAttribute('data-activity', on);
+		github.addEventListener('pointerenter', show(true));
+		github.addEventListener('pointerleave', show(false));
+		github.addEventListener('focus', show(true));
+		github.addEventListener('blur', show(false));
+	}
 </script>

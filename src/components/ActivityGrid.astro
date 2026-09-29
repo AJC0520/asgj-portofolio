@@ -1,0 +1,201 @@
+---
+// GitHub contribution calendar, fetched at build time with GITHUB_TOKEN (see .env).
+// Uses `viewer`, so it shows the calendar of whoever owns the token — no username to configure.
+// Rebuild the site (e.g. a daily scheduled deploy) to keep it current.
+
+type Level = 0 | 1 | 2 | 3 | 4;
+type Day = { weekday: number; level: Level };
+
+const LEVELS: Record<string, Level> = {
+	NONE: 0,
+	FIRST_QUARTILE: 1,
+	SECOND_QUARTILE: 2,
+	THIRD_QUARTILE: 3,
+	FOURTH_QUARTILE: 4,
+};
+
+const QUERY = `query {
+	viewer {
+		contributionsCollection {
+			contributionCalendar {
+				totalContributions
+				weeks { contributionDays { weekday contributionLevel } }
+			}
+		}
+	}
+}`;
+
+async function fetchCalendar(): Promise<{ weeks: Day[][]; total: number } | null> {
+	const token = import.meta.env.GITHUB_TOKEN;
+	if (!token) return null;
+
+	try {
+		const res = await fetch('https://api.github.com/graphql', {
+			method: 'POST',
+			headers: { Authorization: `bearer ${token}`, 'Content-Type': 'application/json' },
+			body: JSON.stringify({ query: QUERY }),
+		});
+		const json = await res.json();
+		const calendar = json.data?.viewer?.contributionsCollection?.contributionCalendar;
+		if (!res.ok || !calendar) {
+			console.warn(`[ActivityGrid] GitHub request failed (${res.status}), using mock data`, json.errors ?? '');
+			return null;
+		}
+		return {
+			total: calendar.totalContributions,
+			weeks: calendar.weeks.map((week: { contributionDays: { weekday: number; contributionLevel: string }[] }) =>
+				week.contributionDays.map((day) => ({ weekday: day.weekday, level: LEVELS[day.contributionLevel] ?? 0 })),
+			),
+		};
+	} catch (error) {
+		console.warn('[ActivityGrid] GitHub request failed, using mock data', error);
+		return null;
+	}
+}
+
+// Fallback when there is no token (or the request fails), so local dev and token-less builds still work.
+// Seeded so it looks the same on every build instead of reshuffling.
+function mockCalendar(): { weeks: Day[][]; total: null } {
+	let seed = 2026;
+	const random = () => {
+		seed = (seed + 0x6d2b79f5) | 0;
+		let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+		t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+		return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+	};
+	const weeks = Array.from({ length: 53 }, (_, week) => {
+		// Busy and quiet stretches, like a real semester
+		const busyness = 0.35 + 0.45 * Math.sin(week / 5) ** 2;
+		return Array.from({ length: 7 }, (_, weekday) => {
+			const chance = busyness * (weekday === 0 || weekday === 6 ? 0.45 : 1);
+			const level = random() > chance ? 0 : Math.min(4, 1 + Math.floor(random() * 4 * busyness + random()));
+			return { weekday, level: level as Level };
+		});
+	});
+	return { weeks, total: null };
+}
+
+const { weeks, total } = (await fetchCalendar()) ?? mockCalendar();
+
+const cells = weeks.flatMap((days, week) =>
+	days.map((day) => ({
+		level: day.level,
+		// Explicit placement: the first and last weeks are usually partial
+		column: week + 1,
+		row: day.weekday + 1,
+		// Reveal wave starts at the top-right corner, closest to the GitHub icon it comes from
+		delay: Math.round((weeks.length - 1 - week) * 4 + day.weekday * 8),
+	})),
+);
+
+const caption =
+	total === null ? 'Contributions in the last year' : `${total.toLocaleString('en-US')} contributions in the last year`;
+---
+
+<div class="activity" aria-hidden="true">
+	<div class="grid" style={`--weeks: ${weeks.length}`}>
+		{
+			cells.map((cell) => (
+				<span
+					data-level={cell.level}
+					style={`grid-area: ${cell.row} / ${cell.column}; --delay: ${cell.delay}ms`}
+				/>
+			))
+		}
+	</div>
+	<p class="caption">{caption}</p>
+</div>
+
+<style>
+	.activity {
+		--ease-out-quart: cubic-bezier(0.165, 0.84, 0.44, 1);
+		--enter: 280ms;
+		--exit: 150ms;
+		--intent-delay: 60ms; /* skip the reveal when the cursor only passes over the icon */
+
+		position: absolute;
+		z-index: -1;
+		/* Drops out just under the header, right-aligned beneath the GitHub icon */
+		right: 16px;
+		top: 60px;
+		width: min(50vw, 820px);
+		pointer-events: none;
+	}
+
+	.grid {
+		display: grid;
+		grid-template-rows: repeat(7, auto);
+		grid-template-columns: repeat(var(--weeks), 1fr);
+		gap: 4px;
+	}
+
+	.grid span {
+		aspect-ratio: 1;
+		border-radius: 2px;
+		background: rgba(244, 239, 225, 0.06);
+		transform-origin: top right;
+		/* Hidden state + exit: everything leaves together, fast */
+		opacity: 0;
+		scale: 0.5;
+		transition:
+			opacity var(--exit) var(--ease-out-quart),
+			scale var(--exit) var(--ease-out-quart);
+	}
+
+	.grid span[data-level='1'] {
+		background: rgba(233, 200, 91, 0.25);
+	}
+
+	.grid span[data-level='2'] {
+		background: rgba(233, 200, 91, 0.45);
+	}
+
+	.grid span[data-level='3'] {
+		background: rgba(233, 200, 91, 0.7);
+	}
+
+	.grid span[data-level='4'] {
+		background: #e9c85b;
+	}
+
+	.caption {
+		margin: 12px 0 0;
+		text-align: right;
+		font-size: 13px;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: rgba(244, 239, 225, 0.5);
+		opacity: 0;
+		transition: opacity var(--exit) var(--ease-out-quart);
+	}
+
+	/* Enter: staggered wave out of the GitHub icon */
+	:global([data-activity]) .grid span {
+		opacity: 1;
+		scale: 1;
+		transition-duration: var(--enter);
+		transition-delay: calc(var(--intent-delay) + var(--delay));
+	}
+
+	:global([data-activity]) .caption {
+		opacity: 1;
+		transition-duration: var(--enter);
+		transition-delay: calc(var(--intent-delay) + 200ms);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.grid span {
+			scale: 1;
+		}
+
+		:global([data-activity]) .grid span {
+			transition-delay: 0ms;
+		}
+	}
+
+	@media (max-width: 640px) {
+		.activity {
+			display: none;
+		}
+	}
+</style>
