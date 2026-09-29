@@ -1,0 +1,116 @@
+---
+// A single "car" light that drives a random Tromsø route now and then.
+// Routes come from public/tromso-routes.json (scripts/build-routes.mjs) and share the map's viewBox,
+// so with preserveAspectRatio="slice" this layer lines up with the hero's `cover` map background.
+---
+
+<svg class="traffic" viewBox="0 0 1600 1350" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+	<path class="glow" />
+	<path class="core" />
+</svg>
+
+<style>
+	.traffic {
+		position: absolute;
+		inset: 0;
+		z-index: -1;
+		width: 100%;
+		height: 100%;
+		pointer-events: none;
+		/* Same fade as the map, so the car disappears toward the top with the streets */
+		mask-image: linear-gradient(to bottom, transparent 10%, #000 70%);
+	}
+
+	path {
+		fill: none;
+		stroke: #e9c85b;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		opacity: 0;
+	}
+
+	.glow {
+		stroke-width: 7;
+	}
+
+	.core {
+		stroke-width: 2;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.traffic {
+			display: none;
+		}
+	}
+</style>
+
+<script>
+	const SPEED = 750; // map units per second: quick, about 1–2 s per drive
+	const PAUSE = [2500, 6000]; // ms between drives
+	const CORE = 34; // light length (map units)
+	const GLOW = 70;
+
+	const svg = document.querySelector<SVGSVGElement>('.traffic');
+	const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+	if (svg && !reduceMotion) {
+		const glow = svg.querySelector<SVGPathElement>('.glow')!;
+		const core = svg.querySelector<SVGPathElement>('.core')!;
+		let routes: { d: string; length: number }[] = [];
+		let visible = true;
+
+		new IntersectionObserver(([entry]) => (visible = entry.isIntersecting)).observe(svg);
+		const canDrive = () => visible && !document.hidden && !svg.closest('[data-covered]');
+
+		function wait(ms: number) {
+			return new Promise((resolve) => setTimeout(resolve, ms));
+		}
+
+		async function driveOnce() {
+			const route = routes[Math.floor(Math.random() * routes.length)];
+			const duration = ((route.length + GLOW) / SPEED) * 1000;
+
+			// A single dash per path travels from before the start to past the end.
+			// Offsets keep the glow's and the core's front edges together.
+			const animations = [
+				[core, CORE],
+				[glow, GLOW],
+			].map(([path, dash]) => {
+				const el = path as SVGPathElement;
+				el.setAttribute('d', route.d);
+				el.style.strokeDasharray = `${dash} ${route.length + GLOW * 2}`;
+				return el.animate(
+					[
+						{ strokeDashoffset: `${dash}`, opacity: 0 },
+						{ opacity: el === core ? 0.9 : 0.25, offset: 0.08 },
+						{ opacity: el === core ? 0.9 : 0.25, offset: 0.9 },
+						{ strokeDashoffset: `${-route.length - GLOW + (dash as number)}`, opacity: 0 },
+					],
+					// Constant speed: it's a light moving through the streets, not a UI transition
+					{ duration, easing: 'linear' },
+				);
+			});
+			await Promise.all(animations.map((a) => a.finished));
+		}
+
+		async function loop() {
+			while (true) {
+				await wait(PAUSE[0] + Math.random() * (PAUSE[1] - PAUSE[0]));
+				if (canDrive()) await driveOnce();
+			}
+		}
+
+		const start = () =>
+			fetch('/tromso-routes.json')
+				.then((res) => res.json())
+				.then((data) => {
+					routes = data.routes;
+					if (routes.length) loop();
+				})
+				.catch(() => {});
+
+		// Not needed for first paint: load the routes once the page is idle
+		if ('requestIdleCallback' in window) requestIdleCallback(start);
+		else setTimeout(start, 1500);
+	}
+</script>
