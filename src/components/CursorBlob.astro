@@ -1,0 +1,88 @@
+<div class="blob" aria-hidden="true"></div>
+
+<style>
+	.blob {
+		position: fixed;
+		top: 0;
+		left: 0;
+		z-index: 1000;
+		width: 16px;
+		height: 16px;
+		margin: -8px 0 0 -8px;
+		border-radius: 50%;
+		background: #e9c85b;
+		/* Reads on the dark hero, the cream stage and the blue card alike */
+		mix-blend-mode: difference;
+		pointer-events: none;
+		opacity: 0;
+		transition:
+			opacity 180ms cubic-bezier(0.165, 0.84, 0.44, 1),
+			scale 180ms cubic-bezier(0.165, 0.84, 0.44, 1);
+	}
+
+	.blob[data-visible] {
+		opacity: 1;
+	}
+
+	.blob[data-hover] {
+		scale: 2.2;
+	}
+
+	@media (hover: none), (prefers-reduced-motion: reduce) {
+		.blob {
+			display: none;
+		}
+	}
+</style>
+
+<script>
+	const FOLLOW = 18; // higher = tighter follow; ~55ms time constant
+
+	const blob = document.querySelector<HTMLElement>('.blob')!;
+	const enabled = matchMedia('(hover: hover) and (prefers-reduced-motion: no-preference)').matches;
+
+	if (enabled) {
+		let x = 0;
+		let y = 0;
+		let targetX = 0;
+		let targetY = 0;
+		let last = 0;
+		let running = false;
+
+		const frame = (now: number) => {
+			const dt = Math.min(0.05, (now - last) / 1000);
+			last = now;
+			// Frame-rate independent exponential smoothing
+			const k = 1 - Math.exp(-FOLLOW * dt);
+			x += (targetX - x) * k;
+			y += (targetY - y) * k;
+			blob.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+
+			if (Math.abs(targetX - x) + Math.abs(targetY - y) > 0.1) {
+				requestAnimationFrame(frame);
+			} else {
+				running = false;
+			}
+		};
+
+		window.addEventListener('pointermove', (e) => {
+			if (e.pointerType !== 'mouse') return;
+			targetX = e.clientX;
+			targetY = e.clientY;
+			if (!blob.hasAttribute('data-visible')) {
+				// First appearance: start on the cursor instead of flying in from the corner
+				x = targetX;
+				y = targetY;
+				blob.toggleAttribute('data-visible', true);
+			}
+			blob.toggleAttribute('data-hover', !!(e.target as Element).closest?.('a, button, [role="button"]'));
+			if (!running) {
+				running = true;
+				last = performance.now();
+				requestAnimationFrame(frame);
+			}
+		});
+
+		document.documentElement.addEventListener('pointerleave', () => blob.removeAttribute('data-visible'));
+	}
+</script>
