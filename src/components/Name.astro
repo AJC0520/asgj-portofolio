@@ -200,8 +200,31 @@ const name = 'AsgeirJacobsen.';
 		ctx.drawImage(mask, 0, 0, width, height);
 		ctx.globalCompositeOperation = 'source-over';
 
-		if (!reduceMotion) requestAnimationFrame(draw);
+		running = shouldRun();
+		if (running) requestAnimationFrame(draw);
 	}
+
+	// Only animate while the name can actually be seen: on screen, and not covered by another card
+	// (a wrapper signals full coverage with [data-covered])
+	let inView = true;
+	let running = false;
+
+	function shouldRun() {
+		return !reduceMotion && inView && !document.hidden && !canvas.closest('[data-covered]');
+	}
+
+	function resume() {
+		if (running || !cells || !shouldRun()) return;
+		running = true;
+		requestAnimationFrame(draw);
+	}
+
+	new IntersectionObserver(([entry]) => {
+		inView = entry.isIntersecting;
+		resume();
+	}).observe(canvas);
+	window.addEventListener('scroll', resume, { passive: true });
+	document.addEventListener('visibilitychange', resume);
 
 	canvas.addEventListener('pointermove', (e) => {
 		if (reduceMotion || !cells) return;
@@ -225,13 +248,14 @@ const name = 'AsgeirJacobsen.';
 		resizeTimer = window.setTimeout(() => {
 			lastWidth = h1.clientWidth;
 			build(false);
-			if (reduceMotion) draw(performance.now());
+			if (running) return;
+			draw(performance.now()); // repaint once at the new size, then continue only if visible
 		}, 120);
 	}).observe(h1);
 
 	Promise.allSettled([document.fonts.load(font(100)), document.fonts.ready]).then(() => {
 		lastWidth = h1.clientWidth;
 		build(!reduceMotion);
-		requestAnimationFrame(draw);
+		draw(performance.now());
 	});
 </script>

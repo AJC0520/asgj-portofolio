@@ -1,5 +1,5 @@
 ---
-// Two stacked "cards": the back one is pulled up from behind and folded over the front one on scroll
+// Two stacked "cards": on scroll the back one is pulled out from under the front one and put in front of it
 ---
 
 <div class="deck">
@@ -16,7 +16,7 @@
 
 <style>
 	.deck {
-		/* 100vh of stage + 150vh of scroll to drive the fold */
+		/* 100vh of stage + the rest is scroll distance that drives the move */
 		height: 150dvh;
 	}
 
@@ -25,8 +25,6 @@
 		top: 0;
 		height: 100dvh;
 		overflow: hidden;
-		perspective: 1600px;
-		perspective-origin: 50% 20%;
 		background: #f4efe1;
 	}
 
@@ -35,7 +33,6 @@
 		inset: 0;
 		overflow: hidden;
 		transform-origin: 50% 50%;
-		backface-visibility: hidden;
 		will-change: transform;
 	}
 
@@ -50,6 +47,8 @@
 
 	.stage[data-flipped] .back {
 		z-index: 3;
+		/* Separates the front card from the one peeking out behind it */
+		box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.18);
 	}
 
 	.dim {
@@ -82,16 +81,20 @@
 	// --ease-in-out-cubic: surfaces already on screen, moving like physical objects
 	const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 	const clamp = (t: number) => Math.min(1, Math.max(0, t));
-	// The flip is split in two halves around the edge-on swap: accelerate into it, decelerate out of it,
-	// so the whole flip still reads as one ease-in-out-cubic with no stall in the middle
-	const easeInCubic = (t: number) => t * t * t;
-	const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 	const progress = (p: number, from: number, to: number) => clamp((p - from) / (to - from));
 	const phase = (p: number, from: number, to: number) => easeInOutCubic(progress(p, from, to));
 
 	const REST_SCALE = 0.86; // size of a card "in the hand"
-	const LIFT = 40; // % of card height the back card rises before folding over
+	const BACK_SCALE = 0.82; // slightly smaller while behind: reads as further away
+	// How far (% of card height) the back card drops: just enough to clear the front card's bottom edge,
+	// so the swap to the front happens while the two don't overlap and can't be seen
+	const DROP = 86;
 	const RADIUS = 28;
+	// Once covered, the hero stays visible as the next card in the deck
+	const PUSH_BACK = 0.04; // how much smaller it gets when it moves one card back
+	const PEEK = 5; // how much of it shows above the front card (% of viewport height)
+	// Offset that puts the hero's top edge PEEK above the front card's top edge
+	const PEEK_OFFSET = (1 - REST_SCALE) * 50 - PEEK - (1 - (REST_SCALE - PUSH_BACK)) * 50;
 
 	const deck = document.querySelector<HTMLElement>('.deck')!;
 	const stage = deck.querySelector<HTMLElement>('.stage')!;
@@ -104,26 +107,25 @@
 		const p = clamp(-deck.getBoundingClientRect().top / scrollable);
 
 		const shrink = phase(p, 0, 0.35); // front card becomes a card in the hand
-		const lift = phase(p, 0.1, 0.5); // back card slides up from behind
-		const tipOver = easeInCubic(progress(p, 0.25, 0.5)); // …and tips toward the viewer until edge-on
-		const land = easeOutCubic(progress(p, 0.5, 1)); // then falls forward and lands in front
+		const pullOut = phase(p, 0.1, 0.5); // back card slides down out from behind…
+		const putFront = phase(p, 0.5, 1); // …then slides back up in front, coming slightly closer
 
-		// Front (hero): shrinks into a card, then gets pushed back and dimmed
-		const frontScale = 1 - (1 - REST_SCALE) * shrink - 0.06 * land;
-		front.style.transform = `scale(${frontScale})`;
+		// Front (hero): shrinks into a card, then moves one card back in the deck,
+		// its top edge peeking out above the new front card
+		const frontScale = 1 - (1 - REST_SCALE) * shrink - PUSH_BACK * putFront;
+		front.style.transform = `translateY(${PEEK_OFFSET * putFront}%) scale(${frontScale})`;
 		front.style.borderRadius = `${RADIUS * shrink}px`;
-		dim.style.opacity = `${0.55 * land}`;
+		dim.style.opacity = `${0.25 * putFront}`;
+		// Only its top edge shows once the other card has landed: lets its content (the name) pause
+		front.toggleAttribute('data-covered', p >= 1);
 
-		// Back card: swaps in front of the hero exactly when it is edge-on (invisible)
-		const flipped = p >= 0.5;
-		stage.toggleAttribute('data-flipped', flipped);
-		if (!flipped) {
-			back.style.transform = `translateY(${-LIFT * lift}%) scale(${REST_SCALE}) rotateX(${-90 * tipOver}deg)`;
-			back.style.borderRadius = `${RADIUS}px`;
-		} else {
-			back.style.transform = `translateY(${-LIFT * (1 - land)}%) scale(${REST_SCALE}) rotateX(${90 * (1 - land)}deg)`;
-			back.style.borderRadius = `${RADIUS}px`;
-		}
+		// Back card: moves in front at the bottom of its drop, where it no longer overlaps the hero
+		const inFront = p >= 0.5;
+		stage.toggleAttribute('data-flipped', inFront);
+		const y = inFront ? DROP * (1 - putFront) : DROP * pullOut;
+		const scale = inFront ? BACK_SCALE + (REST_SCALE - BACK_SCALE) * putFront : BACK_SCALE;
+		back.style.transform = `translateY(${y}%) scale(${scale})`;
+		back.style.borderRadius = `${RADIUS}px`;
 	}
 
 	if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {

@@ -1,5 +1,19 @@
 ---
 import CursorBlob from '../components/CursorBlob.astro';
+
+interface Props {
+	title?: string;
+	description?: string;
+}
+
+const {
+	title = 'Asgeir Jacobsen',
+	description = "Asgeir Jacobsen — Informatics student at NTNU. Bachelor's in 2027, then a master's in Artificial Intelligence.",
+} = Astro.props;
+
+// Link previews need absolute URLs: set `site` in astro.config.mjs once the domain is known
+const canonical = Astro.site ? new URL(Astro.url.pathname, Astro.site).href : undefined;
+const ogImage = Astro.site ? new URL('/og.png', Astro.site).href : undefined;
 ---
 
 <!doctype html>
@@ -16,7 +30,22 @@ import CursorBlob from '../components/CursorBlob.astro';
 			href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600&display=swap"
 		/>
 		<meta name="generator" content={Astro.generator} />
-		<title>Asgeir Jacobsen</title>
+		<title>{title}</title>
+		<meta name="description" content={description} />
+		<meta name="theme-color" content="#141416" />
+		{canonical && <link rel="canonical" href={canonical} />}
+
+		<meta property="og:type" content="website" />
+		<meta property="og:title" content={title} />
+		<meta property="og:description" content={description} />
+		{canonical && <meta property="og:url" content={canonical} />}
+		{ogImage && <meta property="og:image" content={ogImage} />}
+		{ogImage && <meta property="og:image:width" content="1200" />}
+		{ogImage && <meta property="og:image:height" content="630" />}
+
+		<meta name="twitter:card" content={ogImage ? 'summary_large_image' : 'summary'} />
+		<meta name="twitter:title" content={title} />
+		<meta name="twitter:description" content={description} />
 	</head>
 	<body>
 		<slot />
