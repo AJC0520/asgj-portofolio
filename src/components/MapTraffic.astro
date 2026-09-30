@@ -19,6 +19,8 @@
 		pointer-events: none;
 		/* Same fade as the map, so the car disappears toward the top with the streets */
 		mask-image: linear-gradient(to bottom, transparent 10%, #000 70%);
+		/* Own layer: the moving light repaints only itself, not the hero */
+		will-change: transform;
 	}
 
 	path {

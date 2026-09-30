@@ -57,6 +57,8 @@
 		background: #000;
 		opacity: 0;
 		pointer-events: none;
+		/* Own layer: fading it must not repaint the hero underneath */
+		will-change: opacity;
 	}
 
 	@media (prefers-reduced-motion: reduce) {
@@ -88,7 +90,7 @@
 	const BACK_SCALE = 0.82; // slightly smaller while behind: reads as further away
 	// How far (% of card height) the back card drops: just enough to clear the front card's bottom edge,
 	// so the swap to the front happens while the two don't overlap and can't be seen
-	const DROP = 86;
+	const DROP = 84;
 	const RADIUS = 28;
 	// Once covered, the hero stays visible as the next card in the deck
 	const PUSH_BACK = 0.04; // how much smaller it gets when it moves one card back
@@ -102,6 +104,10 @@
 	const front = deck.querySelector<HTMLElement>('.front')!;
 	const dim = deck.querySelector<HTMLElement>('.dim')!;
 
+	// Corner radius is a paint property: only touch it when the rounded pixel value actually changes
+	let frontRadius = -1;
+	back.style.borderRadius = `${RADIUS}px`;
+
 	function render() {
 		const scrollable = deck.offsetHeight - window.innerHeight;
 		const p = clamp(-deck.getBoundingClientRect().top / scrollable);
@@ -114,7 +120,11 @@
 		// its top edge peeking out above the new front card
 		const frontScale = 1 - (1 - REST_SCALE) * shrink - PUSH_BACK * putFront;
 		front.style.transform = `translateY(${PEEK_OFFSET * putFront}%) scale(${frontScale})`;
-		front.style.borderRadius = `${RADIUS * shrink}px`;
+		const radius = Math.round(RADIUS * shrink);
+		if (radius !== frontRadius) {
+			frontRadius = radius;
+			front.style.borderRadius = `${radius}px`;
+		}
 		dim.style.opacity = `${0.25 * putFront}`;
 		// Only its top edge shows once the other card has landed: lets its content (the name) pause
 		front.toggleAttribute('data-covered', p >= 1);
@@ -125,7 +135,6 @@
 		const y = inFront ? DROP * (1 - putFront) : DROP * pullOut;
 		const scale = inFront ? BACK_SCALE + (REST_SCALE - BACK_SCALE) * putFront : BACK_SCALE;
 		back.style.transform = `translateY(${y}%) scale(${scale})`;
-		back.style.borderRadius = `${RADIUS}px`;
 	}
 
 	if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {

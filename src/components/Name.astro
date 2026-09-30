@@ -231,7 +231,9 @@ const name = 'AsgeirJacobsen.';
 	}
 
 	// Only animate while the name can actually be seen: on screen, and not covered by another card
-	// (a wrapper signals full coverage with [data-covered])
+	// (a wrapper signals full coverage with [data-covered]).
+	// Note: pausing it during the card transition was measured to make scrolling *less* smooth
+	// (an idle canvas gets demoted off the GPU), so it keeps running while it's visible.
 	let inView = true;
 	let running = false;
 
@@ -249,8 +251,9 @@ const name = 'AsgeirJacobsen.';
 		inView = entry.isIntersecting;
 		resume();
 	}).observe(canvas);
-	window.addEventListener('scroll', resume, { passive: true });
 	document.addEventListener('visibilitychange', resume);
+	// Resume the moment a wrapper uncovers the name
+	new MutationObserver(resume).observe(document.body, { subtree: true, attributeFilter: ['data-covered'] });
 
 	canvas.addEventListener('pointermove', (e) => {
 		if (reduceMotion || !cells) return;
