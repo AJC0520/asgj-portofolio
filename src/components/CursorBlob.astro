@@ -75,7 +75,12 @@
 				y = targetY;
 				blob.toggleAttribute('data-visible', true);
 			}
-			blob.toggleAttribute('data-hover', !!(e.target as Element).closest?.('a, button, [role="button"]'));
+			// Grows over links and buttons, except where the element is its own hover feedback (data-cursor="plain")
+			const target = e.target as Element;
+			blob.toggleAttribute(
+				'data-hover',
+				!!target.closest?.('a, button, [role="button"]') && !target.closest?.('[data-cursor="plain"]'),
+			);
 			if (!running) {
 				running = true;
 				last = performance.now();

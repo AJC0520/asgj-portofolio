@@ -5,7 +5,7 @@
 // `id`: the section (on the home page, an element with this id) or page the item stands for.
 // The navigation indicator underlines the current one and points from it to the one you hover.
 const links = [
-	{ id: 'work', label: 'Work', href: '#' },
+	{ id: 'work', label: 'Work', href: '/#work' },
 	{ id: 'about', label: 'About', href: '/#about' },
 	{ id: 'contact', label: 'Contact', href: '#' },
 ];
@@ -110,6 +110,17 @@ const isHome = current === '/';
 		view-transition-name: site-header;
 		/* Set from the section underneath (data-header-color), so scrolling content never shows through */
 		background: var(--header-bg, transparent);
+	}
+
+	/* Same grain as the section underneath (see data-header-grain), so the header blends into it */
+	.site-header[data-grain]::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		z-index: -1;
+		background-image: var(--grain);
+		opacity: 0.028; /* matches the hero's visible grain, which sits partly under the map's top fade */
+		pointer-events: none;
 	}
 
 	a {
@@ -244,6 +255,8 @@ const isHome = current === '/';
 				return rect.top <= probe && rect.bottom > probe;
 			});
 			header.style.setProperty('--header-bg', under?.dataset.headerColor ?? 'transparent');
+			// Sections with a surface texture (data-header-grain) get it on the header too, so the two match
+			header.toggleAttribute('data-grain', under?.hasAttribute('data-header-grain') ?? false);
 		};
 		addEventListener(
 			'scroll',
@@ -290,7 +303,10 @@ const isHome = current === '/';
 		const onPage = items.filter((item) => document.getElementById(item.dataset.nav!));
 		if (onPage.length) {
 			const probe = innerHeight * 0.4;
-			return onPage.findLast((item) => document.getElementById(item.dataset.nav!)!.getBoundingClientRect().top <= probe) ?? onPage[0];
+			const top = (item: HTMLElement) => document.getElementById(item.dataset.nav!)!.getBoundingClientRect().top;
+			// The section whose top has most recently passed the probe line (page order, not nav order)
+			const passed = onPage.filter((item) => top(item) <= probe).sort((a, b) => top(b) - top(a));
+			return passed[0] ?? onPage.sort((a, b) => top(a) - top(b))[0];
 		}
 		const path = location.pathname.replace(/\/$/, '') || '/';
 		return items.find((item) => new URL(item.href).pathname.replace(/\/$/, '') === path && item.getAttribute('href') !== '#');

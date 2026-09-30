@@ -1,0 +1,502 @@
+---
+// Projects: an index of rows (year, name, description, tags). Hovering a row wipes in the project's own colour;
+// clicking it slides the list out to the left and the project's detail pane in from the right, in that colour.
+// Each project has its own address (#work/<slug>), so the browser's back button and shared links work.
+
+const projects = [
+	{
+		year: '2026',
+		name: 'This website',
+		description: 'My portfolio: a name made of characters, a map of Tromsø and probably too many animations.',
+		tags: ['Astro', 'TypeScript', 'Canvas'],
+		href: 'https://github.com/AJC0520/asgj-portofolio',
+		accent: 'var(--color-camel)',
+		onAccent: 'var(--color-charcoal-brown)',
+	},
+	{
+		year: '2025',
+		name: 'Project two',
+		description: 'Short description of the project: what it does and what you learned making it.',
+		tags: ['Tag', 'Tag'],
+		href: undefined,
+		accent: 'var(--color-saddle-brown)',
+		onAccent: '#f4efe1',
+	},
+	{
+		year: '2025',
+		name: 'Project three',
+		description: 'Short description of the project: what it does and what you learned making it.',
+		tags: ['Tag', 'Tag', 'Tag'],
+		href: undefined,
+		accent: 'var(--color-dusty-olive)',
+		onAccent: '#f4efe1',
+	},
+	{
+		year: '2024',
+		name: 'Project four',
+		description: 'Short description of the project: what it does and what you learned making it.',
+		tags: ['Tag'],
+		href: undefined,
+		accent: 'var(--color-dry-sage)',
+		onAccent: 'var(--color-charcoal-brown)',
+	},
+].map((project) => ({
+	...project,
+	slug: project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+}));
+---
+
+<section id="work" data-header-color="var(--color-work)">
+	<div class="track">
+		<!-- The list -->
+		<div class="pane list-pane">
+			<h2>Work</h2>
+
+			<ol class="projects">
+				{
+					projects.map((project) => (
+						<li>
+							<button
+								class="row"
+								type="button"
+								data-open={project.slug}
+								data-cursor="plain"
+								style={`--accent: ${project.accent}; --on-accent: ${project.onAccent}`}
+							>
+								<span class="year">{project.year}</span>
+								<span class="name">{project.name}</span>
+								<span class="description">{project.description}</span>
+								<span class="tags">{project.tags.join(' · ')}</span>
+								<span class="arrow" aria-hidden="true">
+									→
+								</span>
+							</button>
+						</li>
+					))
+				}
+			</ol>
+		</div>
+
+		<!-- One project at a time -->
+		<div class="pane detail-pane" inert>
+			{
+				projects.map((project) => (
+					<article
+						class="detail"
+						data-project={project.slug}
+						data-accent={project.accent}
+						style={`--accent: ${project.accent}; --on-accent: ${project.onAccent}`}
+						hidden
+					>
+						<button class="back" type="button" data-close>
+							<span aria-hidden="true">←</span> All projects
+						</button>
+						<p class="meta">
+							{project.year} · {project.tags.join(' · ')}
+						</p>
+						<h3 tabindex="-1">{project.name}</h3>
+						<p class="lead">{project.description}</p>
+						<p class="placeholder">More about this project is coming soon.</p>
+						{project.href && (
+							<a class="link" href={project.href} target="_blank" rel="noopener">
+								View on GitHub <span aria-hidden="true">↗</span>
+							</a>
+						)}
+					</article>
+				))
+			}
+		</div>
+	</div>
+</section>
+
+<style>
+	#work {
+		--cream: #f4efe1;
+		--ease-out-quart: cubic-bezier(0.165, 0.84, 0.44, 1);
+		/* The list ↔ detail slide: a large surface moving on screen, so ease-in-out (speeds up, settles) */
+		--ease-in-out-quart: cubic-bezier(0.77, 0, 0.175, 1);
+
+		display: grid;
+		min-height: 100dvh;
+		background: var(--color-work);
+		color: var(--cream);
+		font-family: var(--font-inter-tight);
+		font-weight: 600;
+		overflow-x: clip; /* the off-screen pane never widens the page */
+	}
+
+	/* Both panes side by side; the track slides one width to the left to show the detail.
+	   Leaving the detail is a little quicker than entering it. */
+	.track {
+		display: grid;
+		grid-template-columns: 100% 100%;
+		transition: transform 520ms var(--ease-in-out-quart);
+	}
+
+	#work[data-detail] .track {
+		transform: translateX(-100%);
+		transition-duration: 650ms;
+	}
+
+	.pane {
+		box-sizing: border-box;
+		min-height: 100dvh;
+		padding: 88px 16px 64px; /* just below the fixed site header */
+	}
+
+	/* While a project is open the page is locked (see the script): the pane fills the screen and scrolls
+	   on its own if its content gets long, without dragging the page along */
+	#work[data-detail] .detail-pane {
+		max-height: 100dvh;
+		overflow-y: auto;
+		overscroll-behavior: contain;
+	}
+
+	:global(html[data-scroll-lock]) {
+		overflow: hidden;
+	}
+
+	.detail-pane {
+		background: var(--accent, var(--color-work));
+		color: var(--on-accent, var(--cream));
+	}
+
+	h2 {
+		margin: 0 0 clamp(32px, 6vh, 64px);
+		font-size: clamp(40px, 7vw, 112px);
+		font-weight: 600;
+		line-height: 0.95;
+		letter-spacing: -0.04em;
+	}
+
+	/* ——— List ——— */
+
+	.projects {
+		margin: 0;
+		padding: 0;
+		list-style: none;
+		border-top: 1px solid rgba(244, 239, 225, 0.2);
+	}
+
+	.projects li {
+		border-bottom: 1px solid rgba(244, 239, 225, 0.2);
+	}
+
+	.row {
+		position: relative;
+		isolation: isolate;
+		display: grid;
+		grid-template-columns: 64px minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 260px) 32px;
+		align-items: baseline;
+		gap: 24px;
+		width: 100%;
+		padding: 22px 12px;
+		border: 0;
+		background: none;
+		color: inherit;
+		font: inherit;
+		text-align: left;
+		cursor: pointer;
+		transition: color 220ms var(--ease-out-quart);
+	}
+
+	/* The project's colour wipes in behind a hovered row (transform only: smooth) */
+	.row::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		z-index: -1;
+		background: var(--accent);
+		transform: scaleX(0);
+		transform-origin: left center;
+		transition: transform 320ms var(--ease-out-quart);
+	}
+
+	.year,
+	.tags,
+	.meta {
+		font-size: 14px;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		opacity: 0.6;
+	}
+
+	.name {
+		font-size: clamp(28px, 3.4vw, 48px);
+		line-height: 1;
+		letter-spacing: -0.03em;
+		transition: transform 320ms var(--ease-out-quart);
+	}
+
+	.description {
+		font-size: 16px;
+		line-height: 1.45;
+		opacity: 0.8;
+	}
+
+	.tags {
+		text-align: right;
+	}
+
+	.arrow {
+		justify-self: end;
+		font-size: 22px;
+		opacity: 0.6;
+		transition:
+			transform 320ms var(--ease-out-quart),
+			opacity 220ms var(--ease-out-quart);
+	}
+
+	@media (hover: hover) {
+		.row:hover {
+			color: var(--on-accent);
+		}
+
+		.row:hover::before {
+			transform: scaleX(1);
+		}
+
+		.row:hover .name {
+			transform: translateX(8px);
+		}
+
+		.row:hover .arrow {
+			opacity: 1;
+			transform: translateX(4px);
+		}
+	}
+
+	.row:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+	}
+
+	/* ——— Detail ——— */
+
+	.detail {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 20px;
+		max-width: 64ch;
+	}
+
+	/* Only the open project is shown (display: flex above would otherwise override [hidden]) */
+	.detail[hidden] {
+		display: none;
+	}
+
+	.back {
+		display: inline-flex;
+		align-items: center;
+		gap: 10px;
+		margin-bottom: clamp(16px, 4vh, 40px);
+		padding: 8px 0;
+		border: 0;
+		background: none;
+		color: inherit;
+		font: inherit;
+		font-size: 14px;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		cursor: pointer;
+	}
+
+	.back span {
+		transition: transform 220ms var(--ease-out-quart);
+	}
+
+	@media (hover: hover) {
+		.back:hover span {
+			transform: translateX(-4px);
+		}
+	}
+
+	.back:focus-visible,
+	.link:focus-visible {
+		outline: 2px solid currentColor;
+		outline-offset: 4px;
+	}
+
+	.meta {
+		margin: 0;
+	}
+
+	h3 {
+		margin: 0;
+		font-size: clamp(40px, 7vw, 112px);
+		font-weight: 600;
+		line-height: 0.95;
+		letter-spacing: -0.04em;
+		outline: none;
+	}
+
+	.lead {
+		margin: 0;
+		font-size: 20px;
+		line-height: 1.45;
+	}
+
+	.placeholder {
+		margin: 0;
+		font-size: 16px;
+		opacity: 0.6;
+	}
+
+	.link {
+		margin-top: 8px;
+		color: inherit;
+		font-size: 16px;
+		text-underline-offset: 4px;
+	}
+
+	@media (max-width: 760px) {
+		.row {
+			grid-template-columns: minmax(0, 1fr) 24px;
+			gap: 6px 12px;
+			padding: 18px 4px;
+		}
+
+		.year,
+		.description,
+		.tags {
+			grid-column: 1;
+		}
+
+		.name {
+			grid-column: 1;
+			grid-row: 2;
+		}
+
+		.arrow {
+			grid-column: 2;
+			grid-row: 1 / span 2;
+			align-self: center;
+		}
+
+		.tags {
+			text-align: left;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.track,
+		#work[data-detail] .track,
+		.row::before,
+		.name,
+		.arrow {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	const OPEN_MS = 650; // keep in sync with the CSS transitions on .track
+	const CLOSE_MS = 520;
+	const EASE = 'cubic-bezier(0.77, 0, 0.175, 1)';
+
+	const section = document.querySelector<HTMLElement>('#work')!;
+	const track = section.querySelector<HTMLElement>('.track')!;
+	const listPane = section.querySelector<HTMLElement>('.list-pane')!;
+	const detailPane = section.querySelector<HTMLElement>('.detail-pane')!;
+	const details = [...section.querySelectorAll<HTMLElement>('.detail')];
+	const header = document.querySelector<HTMLElement>('.site-header');
+	const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+	const listColor = section.dataset.headerColor!;
+	let openSlug: string | null = null;
+	let lockTimer = 0;
+
+	// The header takes the colour of the section under it; let it change in step with the slide
+	function tintHeader(color: string, duration: number) {
+		section.dataset.headerColor = color;
+		if (header && duration && !reduceMotion) {
+			header.style.transition = `background-color ${duration}ms ${EASE}`;
+			setTimeout(() => (header.style.transition = ''), duration);
+		}
+		window.dispatchEvent(new Event('scroll')); // the header re-reads its colour on scroll
+	}
+
+	// Jumps without the slide (first load, restoring from history)
+	function withoutTransition(fn: () => void) {
+		track.style.transition = 'none';
+		fn();
+		track.getBoundingClientRect(); // apply the jump before re-enabling the transition
+		track.style.transition = '';
+	}
+
+	function open(slug: string, animate: boolean) {
+		const detail = details.find((d) => d.dataset.project === slug);
+		if (!detail) return close(false);
+		openSlug = slug;
+		for (const d of details) d.hidden = d !== detail;
+		detailPane.setAttribute('style', detail.getAttribute('style') ?? '');
+
+		const show = () => section.toggleAttribute('data-detail', true);
+		animate ? show() : withoutTransition(show);
+		listPane.inert = true;
+		detailPane.inert = false;
+		tintHeader(detail.dataset.accent!, animate ? OPEN_MS : 0);
+		detailPane.scrollTop = 0;
+
+		// Bring the section's top into view while the pane slides in, then lock the page there
+		// (so you can't scroll back up into the other sections) and hand focus to the project's title
+		const smooth = animate && !reduceMotion;
+		section.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
+		clearTimeout(lockTimer);
+		lockTimer = window.setTimeout(
+			() => {
+				if (openSlug !== slug) return;
+				scrollTo({ top: section.offsetTop, behavior: 'instant' });
+				document.documentElement.toggleAttribute('data-scroll-lock', true);
+				detail.querySelector<HTMLElement>('h3')?.focus({ preventScroll: true });
+			},
+			animate ? OPEN_MS : 0,
+		);
+	}
+
+	function close(animate: boolean) {
+		const was = openSlug;
+		openSlug = null;
+		clearTimeout(lockTimer);
+		document.documentElement.removeAttribute('data-scroll-lock');
+		if (!section.hasAttribute('data-detail')) return;
+		const hide = () => section.removeAttribute('data-detail');
+		animate ? hide() : withoutTransition(hide);
+		listPane.inert = false;
+		detailPane.inert = true;
+		tintHeader(listColor, animate ? CLOSE_MS : 0);
+		// Back to the row you came from
+		section.querySelector<HTMLElement>(`[data-open="${was}"]`)?.focus({ preventScroll: true });
+	}
+
+	// The address is the source of truth: #work/<slug> shows a project, anything else shows the list
+	function sync(animate = true) {
+		const match = location.hash.match(/^#work\/(.+)$/);
+		if (match) open(decodeURIComponent(match[1]), animate);
+		else close(animate);
+	}
+
+	for (const row of section.querySelectorAll<HTMLElement>('[data-open]')) {
+		row.addEventListener('click', () => {
+			history.pushState({ fromList: true }, '', `#work/${row.dataset.open}`);
+			sync();
+		});
+	}
+
+	function backToList() {
+		// Opened from the list: step back in history (so Back/Forward stay tidy); from a shared link: go to the list
+		if (history.state?.fromList) history.back();
+		else {
+			history.pushState(null, '', '#work');
+			sync();
+		}
+	}
+	for (const back of section.querySelectorAll<HTMLElement>('[data-close]')) back.addEventListener('click', backToList);
+	addEventListener('keydown', (e) => {
+		if (e.key === 'Escape' && openSlug) backToList();
+	});
+
+	addEventListener('popstate', () => sync());
+	addEventListener('hashchange', () => sync());
+	sync(false);
+</script>

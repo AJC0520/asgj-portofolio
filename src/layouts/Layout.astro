@@ -93,8 +93,24 @@ const ogImage = Astro.site ? new URL('/og.png', Astro.site).href : undefined;
 		--color-wheat: #efd6ac;
 		--color-midnight-violet: #432534;
 
+		/* Project palette: one colour per project (see Projects.astro) */
+		--color-dark-walnut: #582f0e;
+		--color-saddle-brown: #7f4f24;
+		--color-toffee-brown: #936639;
+		--color-camel: #a68a64;
+		--color-khaki-beige: #b6ad90;
+		--color-dry-sage: #c2c5aa;
+		--color-dry-sage-2: #a4ac86;
+		--color-dusty-olive: #656d4a;
+		--color-ebony: #414833;
+		--color-charcoal-brown: #333d29;
+
 		--color-hero: var(--color-ink-black);
+
+		/* Fine static grain (the hero's surface texture; the header repeats it while over the hero) */
+		--grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.5 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 		--color-about: var(--color-burnt-orange);
+		--color-work: var(--color-dark-slate-grey);
 	}
 
 	/* Page changes animate natively (supporting browsers); the header keeps its place across them */

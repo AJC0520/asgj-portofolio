@@ -18,9 +18,28 @@ Palette from [Coolors](https://coolors.co/palette/04151f-183a37-efd6ac-c44900-43
 | :-- | :-- | :-- | :-- |
 | Ink Black | `#04151f` | `--color-ink-black` | Hero (`--color-hero`) |
 | Burnt Orange | `#c44900` | `--color-burnt-orange` | About (`--color-about`) |
-| Dark Slate Grey | `#183a37` | `--color-dark-slate-grey` | Not used yet |
+| Dark Slate Grey | `#183a37` | `--color-dark-slate-grey` | Work (`--color-work`) |
 | Wheat | `#efd6ac` | `--color-wheat` | Not used yet |
 | Midnight Violet | `#432534` | `--color-midnight-violet` | Not used yet |
+
+### Project colours
+
+A second palette for the Work section, one colour per project (the `accent` and `onAccent` fields in `src/components/Projects.astro`). Also defined in `:root`.
+
+| Colour | Hex | Token |
+| :-- | :-- | :-- |
+| Dark Walnut | `#582f0e` | `--color-dark-walnut` |
+| Saddle Brown | `#7f4f24` | `--color-saddle-brown` |
+| Toffee Brown | `#936639` | `--color-toffee-brown` |
+| Camel | `#a68a64` | `--color-camel` |
+| Khaki Beige | `#b6ad90` | `--color-khaki-beige` |
+| Dry Sage | `#c2c5aa` | `--color-dry-sage` |
+| Dry Sage 2 | `#a4ac86` | `--color-dry-sage-2` |
+| Dusty Olive | `#656d4a` | `--color-dusty-olive` |
+| Ebony | `#414833` | `--color-ebony` |
+| Charcoal Brown | `#333d29` | `--color-charcoal-brown` |
+
+Light colours (Camel, Khaki Beige, Dry Sage, Dry Sage 2) need dark text, like Charcoal Brown; the rest work with the cream text.
 
 A section can also tint the fixed header while it's underneath it: `data-header-color="var(--color-…)"`.
 
