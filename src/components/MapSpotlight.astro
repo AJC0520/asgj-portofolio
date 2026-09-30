@@ -1,0 +1,114 @@
+---
+// The cursor doubles as a small torch over the Tromsø map: streets near it light up.
+// Performance: a moving CSS mask would re-rasterise the whole map on every mouse move. Instead a small
+// circle (fixed radial mask) moves with the cursor while the full-size map inside it moves the opposite
+// way, so the streets stay aligned — two transforms, composited, no repaint.
+---
+
+<div class="spot" aria-hidden="true">
+	<div class="spot-map"></div>
+</div>
+
+<style>
+	.spot {
+		--size: 250px;
+
+		position: absolute;
+		top: 0;
+		left: 0;
+		z-index: -1;
+		width: var(--size);
+		height: var(--size);
+		overflow: hidden;
+		pointer-events: none;
+		mask-image: radial-gradient(circle closest-side, #000 25%, transparent 100%);
+		opacity: 0;
+		will-change: transform;
+		transition: opacity 240ms cubic-bezier(0.165, 0.84, 0.44, 1);
+	}
+
+	.spot[data-on] {
+		opacity: 1;
+	}
+
+	.spot-map {
+		position: absolute;
+		top: 0;
+		left: 0;
+		/* Sized to the hero in JS, so `cover` crops exactly like the background map */
+		background: url('/tromso-map.svg') center / cover no-repeat;
+		opacity: 0.45;
+		will-change: transform;
+	}
+
+	@media (hover: none) {
+		.spot {
+			display: none;
+		}
+	}
+</style>
+
+<script>
+	const FOLLOW = 18; // same smoothing as the cursor blob, so they move together
+
+	const spot = document.querySelector<HTMLElement>('.spot');
+	const hero = spot?.parentElement;
+
+	if (spot && hero && matchMedia('(hover: hover)').matches) {
+		const map = spot.querySelector<HTMLElement>('.spot-map')!;
+		const smooth = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+		let half = spot.offsetWidth / 2;
+		let x = 0;
+		let y = 0;
+		let targetX = 0;
+		let targetY = 0;
+		let last = 0;
+		let running = false;
+
+		const place = () => {
+			// Circle centred on the point; the map inside offset back so it lines up with the hero's map
+			spot.style.transform = `translate3d(${x - half}px, ${y - half}px, 0)`;
+			map.style.transform = `translate3d(${half - x}px, ${half - y}px, 0)`;
+		};
+
+		const frame = (now: number) => {
+			const dt = Math.min(0.05, (now - last) / 1000);
+			last = now;
+			const k = smooth ? 1 - Math.exp(-FOLLOW * dt) : 1;
+			x += (targetX - x) * k;
+			y += (targetY - y) * k;
+			place();
+			running = Math.abs(targetX - x) + Math.abs(targetY - y) > 0.1;
+			if (running) requestAnimationFrame(frame);
+		};
+
+		new ResizeObserver(() => {
+			map.style.width = `${hero.offsetWidth}px`;
+			map.style.height = `${hero.offsetHeight}px`;
+			half = spot.offsetWidth / 2;
+		}).observe(hero);
+
+		hero.addEventListener('pointermove', (e) => {
+			if (e.pointerType !== 'mouse') return;
+			// The hero may be scaled by the card deck: convert screen pixels to its own coordinates
+			const rect = hero.getBoundingClientRect();
+			const scale = hero.offsetWidth / rect.width;
+			targetX = (e.clientX - rect.left) * scale;
+			targetY = (e.clientY - rect.top) * scale;
+			if (!spot.hasAttribute('data-on')) {
+				// Appear where the cursor is instead of sliding in from the last position
+				x = targetX;
+				y = targetY;
+				place();
+				spot.toggleAttribute('data-on', true);
+			}
+			if (!running) {
+				running = true;
+				last = performance.now();
+				requestAnimationFrame(frame);
+			}
+		});
+
+		hero.addEventListener('pointerleave', () => spot.removeAttribute('data-on'));
+	}
+</script>
