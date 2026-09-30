@@ -1,0 +1,295 @@
+---
+// A photo drawn in the site's character look: brighter areas become denser characters, and only the cut-out
+// shape is drawn, so it floats on the section's colour. The characters scramble in the first time the portrait
+// scrolls into view, and the cursor (or a finger) pushes them away; springs bring them back home.
+// The <img> stays in the page, invisible: it's the source the characters are sampled from, and what screen
+// readers describe.
+import type { ImageMetadata } from 'astro';
+import { Image } from 'astro:assets';
+
+interface Props {
+	src: ImageMetadata;
+	alt: string;
+	/** The hero name morphs into this portrait (NameMorph.astro): skip the portrait's own arrival */
+	morphTarget?: boolean;
+}
+
+const { src, alt, morphTarget = false } = Astro.props;
+---
+
+<figure class="portrait" data-morph-target={morphTarget ? '' : undefined}>
+	<Image src={src} alt={alt} widths={[400, 800]} sizes="(max-width: 640px) 90vw, 40vw" loading="lazy" />
+	<canvas aria-hidden="true"></canvas>
+</figure>
+
+<style>
+	.portrait {
+		position: relative;
+		margin: 0;
+		aspect-ratio: 1;
+		touch-action: pan-y; /* a finger can still scroll the page vertically */
+	}
+
+	.portrait img {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+	}
+
+	/* Larger than the portrait (PAD in the script), so pushed characters can fly past its edges */
+	.portrait canvas {
+		position: absolute;
+		inset: -80px;
+		width: calc(100% + 160px);
+		height: calc(100% + 160px);
+		pointer-events: none;
+	}
+
+	.portrait img {
+		object-fit: contain;
+		opacity: 0;
+	}
+</style>
+
+<script>
+	// Same glyph style as the hero name
+	const GLYPHS = 'abcdefghijklmnopqrstuvwxyz0123456789#%&*+=-/<>';
+	const RAMP = " .,:;-=+*x%#@"; // sparse → dense: brighter parts of the photo get denser characters
+	const COLOR = '244, 239, 225'; // cream
+	const CELL = 7; // character cell height (px): small enough for facial features to read
+
+	// Arrival: a top-to-bottom sweep, each character scrambling briefly before it settles
+	const SWEEP_MS = 800;
+	const SCRAMBLE_MS = [220, 480];
+
+	// The cursor pushes characters away; a spring brings each one home (a touch of overshoot, like something
+	// physical settling back). Displaced characters scramble until they're home again.
+	const PUSH_RADIUS = 70; // px around the cursor that pushes
+	const PUSH = 4000; // push strength (px/s² at the cursor)
+	const SPRING = 110; // pull back to the home spot (1/s²)
+	const DAMPING = 15; // friction (1/s): below 2·√SPRING, so it overshoots just a little
+	const PAD = 80; // room around the portrait for characters to fly into
+
+	for (const figure of document.querySelectorAll<HTMLElement>('.portrait')) {
+		const img = figure.querySelector('img')!;
+		const canvas = figure.querySelector('canvas')!;
+		const ctx = canvas.getContext('2d')!;
+		const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+		// Per character, in flat arrays: home position, offset from home, velocity, look, and arrival timing
+		let count = 0;
+		let homeX = new Float32Array(0);
+		let homeY = new Float32Array(0);
+		let offX = new Float32Array(0);
+		let offY = new Float32Array(0);
+		let velX = new Float32Array(0);
+		let velY = new Float32Array(0);
+		let alpha = new Float32Array(0);
+		let appear = new Float32Array(0);
+		let settle = new Float32Array(0);
+		let chars: string[] = [];
+
+		let cellW = CELL * 0.6;
+		let start = -1; // arrival start time; -1 = not in view yet
+		let running = false;
+		let last = 0;
+		let pointer: { x: number; y: number } | null = null;
+		const morphTarget = figure.hasAttribute('data-morph-target');
+
+		// Its character grid, for the name → portrait morph: cell size, top-left of each cell, characters
+		// (as indices into `charset`), the element positions are relative to, and the element to fade in
+		Object.defineProperty(figure, 'charGrid', {
+			get: () =>
+				count && {
+					cellW,
+					cellH: CELL,
+					xs: homeX.map((x) => x - cellW / 2),
+					ys: homeY.map((y) => y - CELL / 2 - 0.5),
+					chars: Uint8Array.from(chars, (c) => RAMP.indexOf(c)),
+					charset: RAMP,
+					count,
+					origin: figure,
+					final: canvas,
+				},
+		});
+
+		function build() {
+			const width = figure.clientWidth;
+			const height = figure.clientHeight;
+			if (!width || !img.naturalWidth) return;
+			const scale = Math.min(window.devicePixelRatio || 1, 2);
+			canvas.width = Math.round((width + PAD * 2) * scale);
+			canvas.height = Math.round((height + PAD * 2) * scale);
+			ctx.setTransform(scale, 0, 0, scale, PAD * scale, PAD * scale);
+
+			// Sample the photo on the character grid: one pixel per cell (the browser averages for us)
+			cellW = CELL * 0.6;
+			const cols = Math.floor(width / cellW);
+			const rows = Math.floor(height / CELL);
+			const sample = document.createElement('canvas');
+			sample.width = cols;
+			sample.height = rows;
+			const sctx = sample.getContext('2d', { willReadFrequently: true })!;
+			// object-fit: contain, like the <img>
+			const fit = Math.min(cols / img.naturalWidth, rows / (img.naturalHeight * (cellW / CELL)));
+			const dw = img.naturalWidth * fit;
+			const dh = img.naturalHeight * fit * (cellW / CELL);
+			sctx.drawImage(img, (cols - dw) / 2, (rows - dh) / 2, dw, dh);
+			const data = sctx.getImageData(0, 0, cols, rows).data;
+
+			// Stretch the photo's brightness range over the whole character ramp, so features read clearly
+			const luminance = (i: number) => (0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2]) / 255;
+			let darkest = 1;
+			let brightest = 0;
+			for (let i = 0; i < data.length; i += 4) {
+				if (data[i + 3] < 90) continue;
+				darkest = Math.min(darkest, luminance(i));
+				brightest = Math.max(brightest, luminance(i));
+			}
+			const range = Math.max(0.05, brightest - darkest);
+
+			const list: { x: number; y: number; char: string; alpha: number; appear: number; settle: number }[] = [];
+			for (let row = 0; row < rows; row++) {
+				for (let col = 0; col < cols; col++) {
+					const i = (row * cols + col) * 4;
+					const a = data[i + 3] / 255;
+					if (a < 0.35) continue; // outside the cut-out
+					const light = Math.min(1, Math.max(0, (luminance(i) - darkest) / range));
+					const char = RAMP[Math.min(RAMP.length - 1, Math.round(Math.pow(light, 1.3) * (RAMP.length - 1)))];
+					if (char === ' ') continue;
+					const y = row * CELL;
+					const t0 = (y / height) * SWEEP_MS + Math.random() * 150;
+					list.push({
+						x: col * cellW + cellW / 2,
+						y: y + CELL / 2,
+						char,
+						alpha: (0.35 + 0.65 * light) * a,
+						appear: t0,
+						settle: t0 + SCRAMBLE_MS[0] + Math.random() * (SCRAMBLE_MS[1] - SCRAMBLE_MS[0]),
+					});
+				}
+			}
+
+			count = list.length;
+			homeX = Float32Array.from(list, (c) => c.x);
+			homeY = Float32Array.from(list, (c) => c.y);
+			offX = new Float32Array(count);
+			offY = new Float32Array(count);
+			velX = new Float32Array(count);
+			velY = new Float32Array(count);
+			alpha = Float32Array.from(list, (c) => c.alpha);
+			appear = Float32Array.from(list, (c) => c.appear);
+			settle = Float32Array.from(list, (c) => c.settle);
+			chars = list.map((c) => c.char);
+			draw(performance.now());
+			figure.dispatchEvent(new CustomEvent('chargrid'));
+		}
+
+		// One physics step for every character: push from the cursor, spring home, friction
+		function step(dt: number) {
+			let moving = false;
+			const r2 = PUSH_RADIUS * PUSH_RADIUS;
+			for (let i = 0; i < count; i++) {
+				let ax = -SPRING * offX[i] - DAMPING * velX[i];
+				let ay = -SPRING * offY[i] - DAMPING * velY[i];
+				if (pointer) {
+					const dx = homeX[i] + offX[i] - pointer.x;
+					const dy = homeY[i] + offY[i] - pointer.y;
+					const d2 = dx * dx + dy * dy;
+					if (d2 < r2 && d2 > 0.01) {
+						const d = Math.sqrt(d2);
+						const strength = PUSH * (1 - d / PUSH_RADIUS) ** 2;
+						ax += (dx / d) * strength;
+						ay += (dy / d) * strength;
+					}
+				}
+				velX[i] += ax * dt;
+				velY[i] += ay * dt;
+				offX[i] += velX[i] * dt;
+				offY[i] += velY[i] * dt;
+				if (Math.abs(offX[i]) + Math.abs(offY[i]) > 0.05 || Math.abs(velX[i]) + Math.abs(velY[i]) > 0.5) moving = true;
+				else offX[i] = offY[i] = velX[i] = velY[i] = 0;
+			}
+			return moving;
+		}
+
+		function draw(now: number) {
+			// Arrival time: -1 = not in view yet; Infinity = fully formed (reduced motion, or the name morphs into it)
+			const t = start < 0 ? -1 : reduceMotion || morphTarget ? Infinity : now - start;
+			const dt = Math.min(1 / 30, (now - last) / 1000 || 0);
+			last = now;
+			const moving = !reduceMotion && t >= 0 && step(dt);
+
+			ctx.save();
+			ctx.setTransform(1, 0, 0, 1, 0, 0);
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+			ctx.restore();
+			ctx.font = `700 ${CELL * 1.1}px ui-monospace, "SF Mono", Menlo, Consolas, monospace`;
+			ctx.textAlign = 'center';
+			ctx.textBaseline = 'middle';
+			let arriving = false;
+			for (let i = 0; i < count; i++) {
+				if (t < appear[i]) {
+					arriving = true;
+					continue;
+				}
+				// Scrambling while arriving, and while knocked out of place
+				const away = Math.abs(offX[i]) + Math.abs(offY[i]) > 1.5;
+				const settled = t >= settle[i] && !away;
+				if (t < settle[i]) arriving = true;
+				ctx.fillStyle = `rgba(${COLOR}, ${settled ? alpha[i] : alpha[i] * 0.6})`;
+				ctx.fillText(
+					settled ? chars[i] : GLYPHS[(Math.random() * GLYPHS.length) | 0],
+					homeX[i] + offX[i],
+					homeY[i] + offY[i],
+				);
+			}
+			running = t >= 0 && (arriving || moving || pointer !== null);
+			if (running) requestAnimationFrame(draw);
+		}
+
+		function wake() {
+			if (running || start < 0) return;
+			running = true;
+			last = performance.now();
+			requestAnimationFrame(draw);
+		}
+
+		// Arrive the first time it scrolls into view — unless the hero name morphs into it: that's its arrival
+		if (morphTarget) start = 0; // already formed (see draw), ready to be pushed around
+		else new IntersectionObserver(
+			([entry], observer) => {
+				if (!entry.isIntersecting) return;
+				observer.disconnect();
+				start = performance.now();
+				wake();
+			},
+			{ threshold: 0.25 },
+		).observe(figure);
+
+		let lastWidth = 0;
+		new ResizeObserver(() => {
+			if (figure.clientWidth === lastWidth) return;
+			lastWidth = figure.clientWidth;
+			build();
+		}).observe(figure);
+		if (img.complete) build();
+		else img.addEventListener('load', build, { once: true });
+
+		// The cursor (or a finger while it's down) pushes the characters
+		const track = (e: PointerEvent) => {
+			if (reduceMotion) return;
+			if (e.pointerType === 'touch' && e.buttons === 0 && e.type !== 'pointerdown') return;
+			const rect = figure.getBoundingClientRect();
+			pointer = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+			wake();
+		};
+		const release = () => (pointer = null);
+		figure.addEventListener('pointermove', track);
+		figure.addEventListener('pointerdown', track);
+		figure.addEventListener('pointerleave', release);
+		figure.addEventListener('pointerup', (e) => e.pointerType === 'touch' && release());
+		figure.addEventListener('pointercancel', release);
+	}
+</script>

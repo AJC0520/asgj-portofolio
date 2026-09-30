@@ -1,14 +1,45 @@
 ---
-import CharHeading from './CharHeading.astro';
+import portrait from '../assets/asgeir.png';
+import CharPortrait from './CharPortrait.astro';
+
+// Placeholder copy — rewrite freely
+const facts = [
+	{ label: 'Studying', value: 'Informatics, NTNU' },
+	{ label: 'Based in', value: 'Trondheim' },
+	{ label: 'From', value: 'Tromsø' },
+];
 ---
 
 <section id="about" data-header-color="var(--color-about)">
-	<CharHeading text="About" look="solid" />
-	<p class="body">
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit. Integer posuere erat a ante venenatis
-		dapibus. Maecenas faucibus mollis interdum. Cras mattis consectetur purus sit amet fermentum.
-		Donec ullamcorper nulla non metus auctor fringilla.
-	</p>
+	<div class="text">
+		<h2>About</h2>
+		<div class="body">
+			<p>
+				Hi, I'm Asgeir. I grew up in Tromsø, where the sun disappears for two months a year, which might explain why I ended up staring at screens.
+			</p>
+			<p>
+				These days I study Informatics at NTNU in Trondheim. I like the part of software where logic meets
+				feel: interfaces that respond just right, animations with a reason to exist, and code that's pleasant
+				to come back to.
+			</p>
+			<p>
+				After my bachelor's I'm hoping to dive into a master's in artificial intelligence, mostly because I want to
+				understand the thing everyone keeps talking about.
+			</p>
+		</div>
+		<dl class="facts">
+			{
+				facts.map((fact) => (
+					<div>
+						<dt>{fact.label}</dt>
+						<dd>{fact.value}</dd>
+					</div>
+				))
+			}
+		</dl>
+	</div>
+
+	<CharPortrait morphTarget src={portrait} alt="Asgeir smiling, with curly blond hair, a white shirt and a patterned tie" />
 </section>
 
 <style>
@@ -18,18 +49,24 @@ import CharHeading from './CharHeading.astro';
 		/* Content sits high in the section: the heading is already on screen while the name's characters
 		   drift in to form it (see NameMorph.astro) */
 		padding: 88px 16px 16px; /* just below the fixed site header */
-		display: flex;
-		flex-direction: column;
-		justify-content: flex-start;
-		gap: 24px;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, min(42vw, 560px));
+		align-items: start;
+		gap: 24px clamp(24px, 5vw, 80px);
 		background: var(--color-about);
+		/* The portrait's characters can fly past its edges; never let them widen or lengthen the page */
+		overflow: clip;
 		color: #f4efe1;
 		font-family: var(--font-inter-tight);
 	}
 
+	.text {
+		display: flex;
+		flex-direction: column;
+		gap: 24px;
+	}
 
-	/* Sizes the character heading (CharHeading draws its text at this font, size and width) */
-	#about :global(.char-heading) {
+	h2 {
 		margin: 0;
 		max-width: 14ch;
 		font-size: clamp(40px, 7vw, 112px);
@@ -39,10 +76,53 @@ import CharHeading from './CharHeading.astro';
 	}
 
 	.body {
-		margin: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 16px;
 		max-width: 52ch;
 		font-size: 18px;
 		line-height: 1.5;
 		opacity: 0.85;
+	}
+
+	.body p {
+		margin: 0;
+	}
+
+	.facts {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, max-content));
+		gap: 12px 48px;
+		margin: 8px 0 0;
+		font-size: 14px;
+	}
+
+	.facts dt {
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		opacity: 0.6;
+	}
+
+	.facts dd {
+		margin: 2px 0 0;
+		font-size: 16px;
+		font-weight: 600;
+	}
+
+	/* The portrait sits to the right, level with the text */
+	#about :global(.portrait) {
+		width: 100%;
+		margin-top: clamp(0px, 4vw, 48px);
+	}
+
+	@media (max-width: 760px) {
+		#about {
+			grid-template-columns: minmax(0, 1fr);
+		}
+
+		#about :global(.portrait) {
+			max-width: 420px;
+			margin-top: 0;
+		}
 	}
 </style>

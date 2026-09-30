@@ -134,6 +134,12 @@ const ogImage = Astro.site ? new URL('/og.png', Astro.site).href : undefined;
 		scrollbar-width: none;
 	}
 
+	/* Nothing should ever make the page scroll sideways (clip, not hidden: no extra scroll container) */
+	html,
+	body {
+		overflow-x: clip;
+	}
+
 	html::-webkit-scrollbar {
 		display: none;
 	}
