@@ -1,6 +1,9 @@
-<section id="about">
-	<p class="eyebrow">01 — About</p>
-	<h2>Placeholder heading for the next section.</h2>
+---
+import CharHeading from './CharHeading.astro';
+---
+
+<section id="about" data-header-color="var(--color-about)">
+	<CharHeading text="About" look="solid" />
 	<p class="body">
 		Lorem ipsum dolor sit amet, consectetur adipiscing elit. Integer posuere erat a ante venenatis
 		dapibus. Maecenas faucibus mollis interdum. Cras mattis consectetur purus sit amet fermentum.
@@ -12,25 +15,21 @@
 	#about {
 		min-height: 100dvh;
 		box-sizing: border-box;
-		padding: 16px;
+		/* Content sits high in the section: the heading is already on screen while the name's characters
+		   drift in to form it (see NameMorph.astro) */
+		padding: 88px 16px 16px; /* just below the fixed site header */
 		display: flex;
 		flex-direction: column;
-		justify-content: flex-end;
+		justify-content: flex-start;
 		gap: 24px;
-		background: #2130d6;
+		background: var(--color-about);
 		color: #f4efe1;
 		font-family: var(--font-inter-tight);
 	}
 
-	.eyebrow {
-		margin: 0;
-		font-size: 14px;
-		letter-spacing: 0.04em;
-		text-transform: uppercase;
-		opacity: 0.7;
-	}
 
-	h2 {
+	/* Sizes the character heading (CharHeading draws its text at this font, size and width) */
+	#about :global(.char-heading) {
 		margin: 0;
 		max-width: 14ch;
 		font-size: clamp(40px, 7vw, 112px);

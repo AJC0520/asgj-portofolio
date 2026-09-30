@@ -2,10 +2,12 @@
 // Site header, shared by every page (rendered in Layout.astro).
 // It keeps its place during page changes (view-transition-name: site-header).
 
+// `id`: the section (on the home page, an element with this id) or page the item stands for.
+// The navigation indicator underlines the current one and points from it to the one you hover.
 const links = [
-	{ label: 'Work', href: '#' },
-	{ label: 'About', href: '/about' },
-	{ label: 'Contact', href: '#' },
+	{ id: 'work', label: 'Work', href: '#' },
+	{ id: 'about', label: 'About', href: '/#about' },
+	{ id: 'contact', label: 'Contact', href: '#' },
 ];
 
 // Add an href to each once there is somewhere to link to
@@ -29,15 +31,27 @@ const profiles = [
 ];
 
 const current = Astro.url.pathname.replace(/\/$/, '') || '/';
+const isHome = current === '/';
 ---
 
 <header class="site-header">
-	<span class="mark">AJ.</span>
+	{
+		// Home: on the home page it scrolls back up to the hero; elsewhere it goes home (with the sweep)
+		isHome ? (
+			<a class="mark" href="#hero" aria-label="Home" data-nav="hero">
+				AJ.
+			</a>
+		) : (
+			<a class="mark" href="/" aria-label="Home" data-nav="hero" data-home>
+				AJ.
+			</a>
+		)
+	}
 	<div class="right">
 		<nav aria-label="Main">
 			{
 				links.map((link) => (
-					<a href={link.href} aria-current={link.href === current ? 'page' : undefined}>
+					<a href={link.href} data-nav={link.id}>
 						{link.label}
 					</a>
 				))
@@ -51,6 +65,8 @@ const current = Astro.url.pathname.replace(/\/$/, '') || '/';
 						<a
 							href={profile.href}
 							aria-label={profile.label}
+							target="_blank"
+							rel="noopener noreferrer"
 							title={profile.label}
 							data-profile={profile.label.toLowerCase()}
 						>
@@ -63,6 +79,12 @@ const current = Astro.url.pathname.replace(/\/$/, '') || '/';
 			}
 		</ul>
 	</div>
+
+	<!-- Navigation indicator: an underline under the current item that becomes an arrow to the hovered one -->
+	<svg class="nav-indicator" aria-hidden="true">
+		<path class="shaft"></path>
+		<path class="head"></path>
+	</svg>
 </header>
 
 <style>
@@ -86,6 +108,8 @@ const current = Astro.url.pathname.replace(/\/$/, '') || '/';
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		view-transition-name: site-header;
+		/* Set from the section underneath (data-header-color), so scrolling content never shows through */
+		background: var(--header-bg, transparent);
 	}
 
 	a {
@@ -97,6 +121,15 @@ const current = Astro.url.pathname.replace(/\/$/, '') || '/';
 		font-size: 18px;
 		letter-spacing: -0.02em;
 		color: var(--yellow);
+	}
+
+	a.mark {
+		transition: opacity 150ms ease;
+	}
+
+	a.mark:focus-visible {
+		outline: 2px solid var(--yellow);
+		outline-offset: 4px;
 	}
 
 	.right {
@@ -116,9 +149,24 @@ const current = Astro.url.pathname.replace(/\/$/, '') || '/';
 		transition: color 150ms ease;
 	}
 
-	nav a[aria-current='page'] {
+	nav a[aria-current] {
 		color: var(--yellow);
 	}
+
+	.nav-indicator {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		overflow: visible;
+		pointer-events: none;
+		fill: none;
+		stroke: var(--yellow);
+		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+
 
 	@media (hover: hover) {
 		nav a:hover {
@@ -179,3 +227,229 @@ const current = Astro.url.pathname.replace(/\/$/, '') || '/';
 		}
 	}
 </style>
+
+<script>
+	import { clearSweeps, navigateAfterSweep, sweep } from '../scripts/sweep';
+
+	// The header takes the colour of whichever section is under it (sections opt in with data-header-color)
+	const header = document.querySelector<HTMLElement>('.site-header')!;
+	const coloured = [...document.querySelectorAll<HTMLElement>('[data-header-color]')];
+	if (coloured.length) {
+		let queued = false;
+		const tint = () => {
+			queued = false;
+			const probe = header.offsetHeight / 2;
+			const under = coloured.find((section) => {
+				const rect = section.getBoundingClientRect();
+				return rect.top <= probe && rect.bottom > probe;
+			});
+			header.style.setProperty('--header-bg', under?.dataset.headerColor ?? 'transparent');
+		};
+		addEventListener(
+			'scroll',
+			() => {
+				if (queued) return;
+				queued = true;
+				requestAnimationFrame(tint);
+			},
+			{ passive: true },
+		);
+		addEventListener('resize', tint);
+		tint();
+	}
+
+	// ——— Navigation indicator ———
+	// At rest: an underline under the current item. Hover (or focus) another item and it becomes a bracket
+	// arrow: down from under the current item, across, and up into an arrowhead under the hovered one.
+	// The underline is the same path with its corners at zero depth, so the arrow grows straight out of it.
+	// Each frame every value moves a fixed share of the way to where it should be (like the cursor blob), so
+	// it's interruptible: sweep across the items and it redirects mid-flight instead of restarting.
+	const FOLLOW = 14; // higher = snappier
+	const HEAD = 5; // arrowhead half-width (px)
+	const DROP = 10; // how far the arrow dips below the underline (px)
+	const RADIUS = 6; // rounding of the arrow's two bends (px)
+	const GAP = 7; // space between the text and the line (px)
+
+	const indicator = header.querySelector<SVGSVGElement>('.nav-indicator')!;
+	const shaft = indicator.querySelector<SVGPathElement>('.shaft')!;
+	const head = indicator.querySelector<SVGPathElement>('.head')!;
+	const items = [...header.querySelectorAll<HTMLAnchorElement>('[data-nav]')];
+	const instant = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+	let current: HTMLAnchorElement | undefined;
+	let hovered: HTMLAnchorElement | undefined;
+	const shown = { x1: 0, x2: 0, head: 0 };
+	let target = { ...shown };
+	let lineY = 0;
+	let running = false;
+	let last = 0;
+	let placed = false;
+
+	// Where the current section/page is: sections on this page (by scroll position), otherwise the address
+	function findCurrent() {
+		const onPage = items.filter((item) => document.getElementById(item.dataset.nav!));
+		if (onPage.length) {
+			const probe = innerHeight * 0.4;
+			return onPage.findLast((item) => document.getElementById(item.dataset.nav!)!.getBoundingClientRect().top <= probe) ?? onPage[0];
+		}
+		const path = location.pathname.replace(/\/$/, '') || '/';
+		return items.find((item) => new URL(item.href).pathname.replace(/\/$/, '') === path && item.getAttribute('href') !== '#');
+	}
+
+	function box(item: HTMLElement) {
+		const rect = item.getBoundingClientRect();
+		const origin = header.getBoundingClientRect();
+		return { left: rect.left - origin.left, right: rect.right - origin.left, center: rect.left - origin.left + rect.width / 2 };
+	}
+
+	function retarget() {
+		if (!current) {
+			target = { x1: shown.x1, x2: shown.x1, head: 0 };
+		} else if (hovered && hovered !== current) {
+			const from = box(current);
+			const to = box(hovered);
+			target = { x1: from.center, x2: to.center, head: 1 };
+		} else {
+			const at = box(current);
+			target = { x1: at.left, x2: at.right, head: 0 };
+		}
+		if (!placed || instant) {
+			Object.assign(shown, target);
+			placed = true;
+		}
+		if (!running) {
+			running = true;
+			last = performance.now();
+			requestAnimationFrame(frame);
+		}
+	}
+
+	function draw() {
+		const { x1, x2 } = shown;
+		const depth = DROP * shown.head; // how far the bends have sunk (0 at rest: a flat underline)
+		const bottom = lineY + depth;
+		const dir = Math.sign(x2 - x1) || 1;
+		// Rounded bends, never bigger than the dip or half the width
+		const r = Math.min(RADIUS, depth, Math.abs(x2 - x1) / 2);
+		const size = HEAD * shown.head; // the chevron grows in with the arrow
+		const tip = lineY - 1;
+		// Down from the current item, around the bend, across, around, and up into the chevron's tip
+		shaft.setAttribute(
+			'd',
+			`M${x1} ${lineY}L${x1} ${bottom - r}Q${x1} ${bottom} ${x1 + dir * r} ${bottom}` +
+				`L${x2 - dir * r} ${bottom}Q${x2} ${bottom} ${x2} ${bottom - r}L${x2} ${size > 0.2 ? tip : lineY}`,
+		);
+		// Open chevron, same weight as the line
+		head.setAttribute('d', size > 0.2 ? `M${x2 - size} ${tip + size * 1.2}L${x2} ${tip}L${x2 + size} ${tip + size * 1.2}` : '');
+	}
+
+	function frame(now: number) {
+		const dt = Math.min(0.05, (now - last) / 1000);
+		last = now;
+		const k = 1 - Math.exp(-FOLLOW * dt);
+		let moving = false;
+		for (const key of ['x1', 'x2', 'head'] as const) {
+			shown[key] += (target[key] - shown[key]) * k;
+			if (Math.abs(target[key] - shown[key]) > 0.05) moving = true;
+			else shown[key] = target[key];
+		}
+		draw();
+		if (moving) requestAnimationFrame(frame);
+		else running = false;
+	}
+
+	function measure() {
+		// One shared baseline just under the lowest item, so the line runs straight across the header
+		const origin = header.getBoundingClientRect();
+		lineY = Math.max(...items.map((item) => item.getBoundingClientRect().bottom - origin.top)) + GAP;
+	}
+
+	function updateCurrent() {
+		const next = findCurrent();
+		if (next === current) return;
+		current?.removeAttribute('aria-current');
+		current = next;
+		// On the home page these are sections ("location"); on their own pages they're pages
+		current?.setAttribute('aria-current', document.getElementById(current.dataset.nav!) ? 'location' : 'page');
+		retarget();
+	}
+
+	// Moving from one item to the next crosses a gap where nothing is hovered. Wait a moment before folding
+	// back, so going from e.g. About to Contact just slides the arrowhead over instead of redrawing the arrow.
+	const LEAVE_GRACE = 150;
+	let leaveTimer = 0;
+	const enter = (item: HTMLAnchorElement) => {
+		clearTimeout(leaveTimer);
+		if (hovered === item) return;
+		hovered = item;
+		retarget();
+	};
+	const leave = (item: HTMLAnchorElement) => {
+		clearTimeout(leaveTimer);
+		leaveTimer = window.setTimeout(() => {
+			if (hovered !== item) return;
+			hovered = undefined;
+			retarget();
+		}, LEAVE_GRACE);
+	};
+	for (const item of items) {
+		item.addEventListener('pointerenter', () => enter(item));
+		item.addEventListener('pointerleave', () => leave(item));
+		item.addEventListener('focus', () => enter(item));
+		item.addEventListener('blur', () => leave(item));
+	}
+
+	let navQueued = false;
+	addEventListener(
+		'scroll',
+		() => {
+			if (navQueued) return;
+			navQueued = true;
+			requestAnimationFrame(() => {
+				navQueued = false;
+				updateCurrent();
+			});
+		},
+		{ passive: true },
+	);
+	new ResizeObserver(() => {
+		measure();
+		placed = false; // jump to the new layout instead of animating across it
+		retarget();
+	}).observe(header);
+	document.fonts.ready.then(() => {
+		measure();
+		placed = false;
+		retarget();
+	});
+	measure();
+	updateCurrent();
+
+	// Going home: the hero's dark sweeps in from the "AJ." corner, then the hero loads
+	// (and its name plays its intro again — a natural "welcome back").
+	const HERO_COLOR = getComputedStyle(document.documentElement).getPropertyValue('--color-hero').trim() || '#04151f';
+
+	const home = document.querySelector<HTMLAnchorElement>('[data-home]');
+	const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+	if (home && !reduceMotion) {
+		let leaving = false;
+
+		home.addEventListener('click', async (e) => {
+			// New tab / window: plain navigation
+			if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || leaving) return;
+			e.preventDefault();
+			leaving = true;
+			// From the top-left corner (where the logo is) toward the opposite corner
+			await sweep({ color: HERO_COLOR, angle: Math.atan2(innerHeight, innerWidth) });
+			navigateAfterSweep(home.href);
+		});
+
+		// Coming back with the browser's back button can restore this page mid-transition: clean up
+		window.addEventListener('pageshow', (e) => {
+			if (!e.persisted) return;
+			leaving = false;
+			clearSweeps();
+		});
+	}
+</script>

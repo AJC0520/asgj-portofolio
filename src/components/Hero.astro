@@ -9,28 +9,26 @@ const intro = 'Informatics student at NTNU.';
 const plan = "Bachelor's done in 2027, then (hopefully) on to a master's in Artificial Intelligence, finishing in 2029.";
 ---
 
-<section id="hero">
+<section id="hero" data-header-color="var(--color-hero)">
 	<MapCanvas />
 	<MapSpotlight />
 	<ActivityGrid />
 
-	<div class="meta" data-hero-fade>
+	<div class="meta">
 		<p class="intro">{intro}<br /><span class="muted">{plan}</span></p>
 	</div>
 
-	<div class="bottom" data-hero-fade>
-		<a class="cta" href="/about">
-			<span>Read more about me</span>
-			<span class="road" aria-hidden="true"><span class="light"></span></span>
-		</a>
+	<div class="bottom">
+		<div class="scroll-cue" aria-hidden="true">
+			<span>Scroll to read more about me</span>
+			<span class="track"><span class="pulse"></span></span>
+		</div>
 
 		<Name />
 	</div>
 
 	<p class="map-credit">Map of Tromsø · © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors</p>
 
-	<!-- The next page's colour, opening out of the point where the car stops -->
-	<div class="reveal" aria-hidden="true"></div>
 </section>
 
 <style>
@@ -68,26 +66,6 @@ const plan = "Bachelor's done in 2027, then (hopefully) on to a master's in Arti
 		margin: 0;
 	}
 
-	/* Follow the light: the foreground drifts toward you and fades while the camera dives into the map */
-	[data-hero-fade] {
-		transition:
-			opacity 400ms var(--ease-out-quart),
-			transform 700ms var(--ease-out-quart);
-	}
-
-	#hero[data-following] [data-hero-fade] {
-		opacity: 0;
-		transform: scale(1.06);
-	}
-
-	.reveal {
-		position: fixed;
-		inset: 0;
-		z-index: 50; /* above the page, below the site header */
-		background: #2130d6;
-		clip-path: circle(0 at 50% 50%);
-		pointer-events: none;
-	}
 
 	/* Intro */
 	/* Clear the fixed site header, then breathe */
@@ -137,133 +115,74 @@ const plan = "Bachelor's done in 2027, then (hopefully) on to a master's in Arti
 		text-decoration: none;
 	}
 
-	.cta {
+	.scroll-cue {
 		align-self: flex-end;
 		margin-right: clamp(0px, 6vw, 120px);
 		display: flex;
 		align-items: center;
 		gap: 14px;
-		padding: 8px 0;
 		font-size: 16px;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--yellow);
-		transition: color 150ms ease;
+		/* Exit: fast, ease-out */
+		transition: opacity 180ms var(--ease-out-quart);
 	}
 
-	@media (hover: hover) {
-		.cta:hover {
-			color: var(--cream);
-		}
+	:global([data-scrolled]) .scroll-cue {
+		opacity: 0;
 	}
 
-	.cta:focus-visible {
-		outline: 2px solid var(--yellow);
-		outline-offset: 6px;
-	}
-
-	/* A little road with a light driving along it: a hint of what the button does */
-	.road {
+	.track {
 		position: relative;
-		width: 56px;
-		height: 1px;
+		width: 1px;
+		height: 56px;
 		overflow: hidden;
 		background: rgba(233, 200, 91, 0.25);
 	}
 
-	.light {
+	/* A short segment travels down the line: "keep going this way" */
+	.pulse {
 		position: absolute;
-		inset: 0 auto 0 0;
-		width: 40%;
+		left: 0;
+		top: 0;
+		width: 100%;
+		height: 40%;
 		background: var(--yellow);
-		animation: drive 1600ms cubic-bezier(0.645, 0.045, 0.355, 1) infinite;
+		animation: travel 1600ms cubic-bezier(0.645, 0.045, 0.355, 1) infinite;
 	}
 
-	@keyframes drive {
+	@keyframes travel {
 		from {
-			transform: translateX(-100%);
+			transform: translateY(-100%);
 		}
 		to {
-			transform: translateX(250%);
+			transform: translateY(250%);
 		}
 	}
 
 	@media (max-width: 640px) {
-		.cta {
+		.scroll-cue {
 			margin-right: 0;
 			font-size: 13px;
 		}
 	}
 
 	@media (prefers-reduced-motion: reduce) {
-		.light {
+		.pulse {
 			animation: none;
-			transform: translateX(75%);
+			transform: translateY(75%);
 		}
 	}
 </style>
 
 <script>
-	const REVEAL_MS = 600;
-	// --ease-in-out-cubic: the colour opens out of the stop point and settles over the whole screen
-	const EASE_IN_OUT = 'cubic-bezier(0.645, 0.045, 0.355, 1)';
-
 	const hero = document.querySelector<HTMLElement>('#hero')!;
-	const map = hero.querySelector<HTMLElement>('[data-zoom-map]');
-	const reveal = hero.querySelector<HTMLElement>('.reveal')!;
-	const bottom = hero.querySelector<HTMLElement>('.bottom')!;
-	const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-	let busy = false;
 
-	// Follow the light: the camera follows a car through Tromsø, and the About page opens where it stops
-	async function followTo(href: string) {
-		if (busy) return;
-		busy = true;
-		hero.toggleAttribute('data-following', true);
-		hero.toggleAttribute('data-zooming', true); // the cursor spotlight steps aside
-		bottom.toggleAttribute('data-covered', true); // the name stops animating while it fades
-
-		const stop = await Promise.race([
-			new Promise<{ x: number; y: number }>((resolve) =>
-				map?.dispatchEvent(new CustomEvent('mapfollow', { detail: { resolve } })),
-			),
-			// Never strand the visitor if the map can't run
-			new Promise<{ x: number; y: number }>((resolve) =>
-				setTimeout(() => resolve({ x: innerWidth / 2, y: innerHeight / 2 }), 5000),
-			),
-		]);
-
-		const radius = Math.hypot(Math.max(stop.x, innerWidth - stop.x), Math.max(stop.y, innerHeight - stop.y));
-		await reveal.animate(
-			[
-				{ clipPath: `circle(0px at ${stop.x}px ${stop.y}px)` },
-				{ clipPath: `circle(${radius}px at ${stop.x}px ${stop.y}px)` },
-			],
-			{ duration: REVEAL_MS, easing: EASE_IN_OUT, fill: 'forwards' },
-		).finished;
-		location.href = href;
-	}
-
-	// The call to action and the header's About link both take the drive (from this page only)
-	for (const link of document.querySelectorAll<HTMLAnchorElement>('a[href="/about"]')) {
-		link.addEventListener('click', (e) => {
-			// New tab / window, or reduced motion: plain navigation
-			if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || reduceMotion) return;
-			e.preventDefault();
-			followTo(link.href);
-		});
-	}
-
-	// Coming back with the browser's back button can restore this page mid-transition: reset it
-	window.addEventListener('pageshow', (e) => {
-		if (!e.persisted) return;
-		busy = false;
-		hero.removeAttribute('data-following');
-		hero.removeAttribute('data-zooming');
-		bottom.removeAttribute('data-covered');
-		reveal.getAnimations().forEach((animation) => animation.cancel());
-		map?.dispatchEvent(new CustomEvent('mapreset'));
-	});
+	// The scroll hint steps aside once you start scrolling
+	const update = () => document.documentElement.toggleAttribute('data-scrolled', window.scrollY > 8);
+	window.addEventListener('scroll', update, { passive: true });
+	update();
 
 	// Easter egg: the GitHub icon in the header reveals the activity grid behind the hero
 	const github = document.querySelector<HTMLElement>('[data-profile="github"]');

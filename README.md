@@ -5,10 +5,31 @@ Personal portfolio site for Asgeir Jacobsen, Informatics student at NTNU. Built 
 ## Highlights
 
 - **Type-built name.** The name in the hero is drawn on a canvas as a grid of small monospace characters, clipped to the letter shapes. The characters scramble in from left to right, flicker now and then, and scramble around the cursor.
-- **Card-deck scroll.** Scrolling shrinks the hero into a card. The next section slides out from behind it and is placed in front, while the hero stays peeking out behind it like a deck.
+- **Name → heading morph.** As you scroll, the name's characters break loose, drift down and condense into the About heading. It's tied to the scroll position, so scrolling back up reverses it.
 - **Tromsø at night.** The hero background is a faint street map of Tromsø built from OpenStreetMap data. A small light drives a random route through the streets every few seconds.
 - **GitHub activity easter egg.** Hovering the GitHub icon reveals the real contribution calendar, fetched at build time, in a wave that comes out of the icon.
 - **Small details.** A cursor blob that trails the pointer and a scroll hint. `prefers-reduced-motion` is respected everywhere, and animations pause when they are off screen.
+
+## Colour palette
+
+Defined as CSS custom properties in `src/layouts/Layout.astro` (`:root`). Components use the role tokens, and new pages or sections can use the named colours.
+
+| Colour | Hex | Token | Used for |
+| :-- | :-- | :-- | :-- |
+| Ink Black | `#04151f` | `--color-ink-black` | Hero (`--color-hero`) |
+| Burnt Orange | `#c44900` | `--color-burnt-orange` | About (`--color-about`) |
+| Dark Slate Grey | `#183a37` | `--color-dark-slate-grey` | Not used yet |
+| Wheat | `#efd6ac` | `--color-wheat` | Not used yet |
+| Midnight Violet | `#432534` | `--color-midnight-violet` | Not used yet |
+
+A section can also tint the fixed header while it's underneath it: `data-header-color="var(--color-…)"`.
+
+### Palettes tried before
+
+Kept here so you can switch back. Paste one into the `:root` block and point the role tokens at it.
+
+- **Deep space:** Deep Space Blue `#003049` (hero) · Flag Red `#d62828` (about) · Princeton Orange `#f77f00` · Sunflower Gold `#fcbf49` · Vanilla Custard `#eae2b7`
+- **Teal:** Teal `#177e89` · Dark Teal `#084c61` · Scarlet Rush `#db3a34` · Sunflower Gold `#ffc857` · Graphite `#323031` (never applied)
 
 ## Getting started
 

@@ -1,0 +1,205 @@
+---
+// Scroll transition: the characters of the hero name break loose, drift down and re-form as the About
+// heading. Both ends are real canvases (Name.astro, CharHeading.astro) that expose `charGrid`; this overlay
+// takes over their characters in between. Everything is tied to scroll position, so scrolling back reverses it.
+//
+// Smoothness: it only draws when the scroll position changes; at most MAX_PARTICLES characters; and the
+// characters are drawn in a few batches by colour and size, so canvas state changes a handful of times per
+// frame instead of once per character.
+---
+
+<canvas class="name-morph" aria-hidden="true"></canvas>
+
+<style>
+	.name-morph {
+		position: fixed;
+		inset: 0;
+		z-index: 40; /* above the page, below the site header */
+		width: 100%;
+		height: 100%;
+		pointer-events: none;
+	}
+</style>
+
+<script>
+	const GLYPHS = 'abcdefghijklmnopqrstuvwxyz0123456789#%&*+=-/<>';
+	const FROM_COLOR = '#e9c85b'; // the name's yellow
+	const MID_COLOR = 'rgba(246, 236, 200, 0.6)'; // loose, scrambling characters
+	const TO_COLOR = '#f4efe1'; // the heading's cream
+	const MAX_PARTICLES = 2600;
+	const MAX_DPR = 1.5;
+
+	// Timeline (0–1 over the scroll from the hero to the About section)
+	const HANDOFF = 0.06; // crossfade from the real name to the loose characters
+	const LANDING = 0.12; // …and at the end, the landed characters condensing into the finished heading
+	const STAGGER = 0.22; // left side breaks loose first, right side last
+	const SPAN = 0.58; // how long each character's own flight takes (all have landed before LANDING starts)
+
+	// --ease-in-out-cubic: each character lifts off gently, travels, and settles into place
+	const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+	const clamp = (t: number) => Math.min(1, Math.max(0, t));
+	const glyphFont = (size: number) => `700 ${size * 1.15}px ui-monospace, "SF Mono", Menlo, Consolas, monospace`;
+
+	type Grid = { cellW: number; cellH: number; xs: Float32Array; ys: Float32Array; chars: Uint8Array; count: number };
+	type WithGrid = HTMLElement & { charGrid?: Grid | null };
+
+	const overlay = document.querySelector<HTMLCanvasElement>('.name-morph');
+	const name = document.querySelector<WithGrid>('h1.name');
+	const heading = document.querySelector<WithGrid>('#about .char-heading');
+	const about = document.querySelector<HTMLElement>('#about');
+	const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+	if (overlay && name && heading && about && !reduceMotion) {
+		const ctx = overlay.getContext('2d')!;
+		const nameCanvas = name.querySelector('canvas')!;
+		const headingCanvas = heading.querySelector('canvas')!; // the grid the characters land on
+		const headingFinal = heading.querySelector<HTMLElement>('[data-morph-final]') ?? headingCanvas; // what ends up visible
+
+		// One loose character per heading cell: where it starts (in the name), where it lands, and how it flies
+		let particles: {
+			count: number;
+			sx: Float32Array; sy: Float32Array; // start, relative to the name canvas (cell centre)
+			tx: Float32Array; ty: Float32Array; // target, relative to the heading canvas (cell centre)
+			delay: Float32Array; scatter: Float32Array; drop: Float32Array;
+			fromChar: Uint8Array; toChar: Uint8Array;
+			fromSize: number; toSize: number;
+			// Per-frame scratch space, allocated once
+			xs: Float32Array; ys: Float32Array; bucket: Uint8Array; glyph: Uint8Array;
+		} | null = null;
+		let lastP = -1;
+		let dpr = 1;
+
+		function buildParticles() {
+			const from = name!.charGrid;
+			const to = heading!.charGrid;
+			if (!from?.count || !to?.count) return false;
+
+			// Pair them left to right, so each part of the name flows into the matching part of the heading
+			const byX = (grid: Grid) => Array.from({ length: grid.count }, (_, i) => i).sort((a, b) => grid.xs[a] - grid.xs[b] || grid.ys[a] - grid.ys[b]);
+			const sources = byX(from);
+			const targets = byX(to);
+			const count = Math.min(to.count, MAX_PARTICLES);
+			const nameWidth = nameCanvas.clientWidth || 1;
+
+			const p = {
+				count,
+				sx: new Float32Array(count), sy: new Float32Array(count),
+				tx: new Float32Array(count), ty: new Float32Array(count),
+				delay: new Float32Array(count), scatter: new Float32Array(count), drop: new Float32Array(count),
+				fromChar: new Uint8Array(count), toChar: new Uint8Array(count),
+				fromSize: from.cellH, toSize: to.cellH,
+				xs: new Float32Array(count), ys: new Float32Array(count),
+				bucket: new Uint8Array(count), glyph: new Uint8Array(count),
+			};
+			for (let i = 0; i < count; i++) {
+				const s = sources[Math.floor((i * from.count) / count)];
+				const t = targets[Math.floor((i * to.count) / count)];
+				p.sx[i] = from.xs[s] + from.cellW / 2;
+				p.sy[i] = from.ys[s] + from.cellH / 2 + 0.5;
+				p.tx[i] = to.xs[t] + to.cellW / 2;
+				p.ty[i] = to.ys[t] + to.cellH / 2 + 0.5;
+				p.fromChar[i] = from.chars[s];
+				p.toChar[i] = to.chars[t];
+				p.delay[i] = STAGGER * (p.sx[i] / nameWidth) * 0.8 + STAGGER * 0.2 * Math.random();
+				// Loose flight: a little sideways scatter and a downward sag mid-air
+				p.scatter[i] = (Math.random() - 0.5) * 160;
+				p.drop[i] = 40 + Math.random() * 140;
+			}
+			particles = p;
+			return true;
+		}
+
+		function resize() {
+			dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+			overlay!.width = Math.round(innerWidth * dpr);
+			overlay!.height = Math.round(innerHeight * dpr);
+			lastP = -1;
+			render();
+		}
+
+		// 0 with the hero at rest → 1 when the heading has formed, just before the About section settles in
+		function progress() {
+			const start = innerHeight * 0.02;
+			const end = about!.offsetTop * 0.9;
+			return clamp((scrollY - start) / (end - start));
+		}
+
+		function render() {
+			const p = progress();
+			if (p === lastP) return;
+			lastP = p;
+
+			// The real canvases at either end, crossfading with the loose characters at the handoffs
+			const nameShown = 1 - clamp(p / HANDOFF);
+			const headingShown = clamp((p - (1 - LANDING)) / LANDING);
+			name!.style.opacity = `${nameShown}`;
+			headingFinal.style.opacity = `${headingShown}`;
+			// The name's own animation rests while its characters are out
+			name!.toggleAttribute('data-covered', p > 0);
+
+			ctx.setTransform(1, 0, 0, 1, 0, 0);
+			ctx.clearRect(0, 0, overlay!.width, overlay!.height);
+			if (p <= 0 || p >= 1) return;
+			if (!particles && !buildParticles()) return;
+			const P = particles!;
+
+			const nameRect = nameCanvas.getBoundingClientRect();
+			const headRect = headingCanvas.getBoundingClientRect();
+			ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+			ctx.globalAlpha = Math.min(1 - nameShown, 1 - headingShown) || 0;
+			ctx.textAlign = 'center';
+			ctx.textBaseline = 'middle';
+
+			// Work out every character's state first, then draw in batches (3 colours × 3 sizes)
+			const { xs, ys, bucket, glyph } = P;
+			const scramble = Math.floor(p * 90);
+			for (let i = 0; i < P.count; i++) {
+				const e = easeInOutCubic(clamp((p - P.delay[i]) / SPAN));
+				const arc = Math.sin(Math.PI * e);
+				xs[i] = nameRect.left + P.sx[i] + (headRect.left + P.tx[i] - nameRect.left - P.sx[i]) * e + arc * P.scatter[i];
+				ys[i] = nameRect.top + P.sy[i] + (headRect.top + P.ty[i] - nameRect.top - P.sy[i]) * e + arc * P.drop[i];
+				const colour = e < 0.12 ? 0 : e > 0.88 ? 2 : 1;
+				const size = e < 0.33 ? 0 : e < 0.66 ? 1 : 2;
+				bucket[i] = colour * 3 + size;
+				// Its own character at either end; scrambling while loose
+				glyph[i] = colour === 0 ? P.fromChar[i] : colour === 2 ? P.toChar[i] : (i * 13 + scramble) % GLYPHS.length;
+			}
+
+			const colours = [FROM_COLOR, MID_COLOR, TO_COLOR];
+			for (let b = 0; b < 9; b++) {
+				const colour = Math.floor(b / 3);
+				const size = b % 3;
+				ctx.fillStyle = colours[colour];
+				ctx.font = glyphFont(P.fromSize + ((P.toSize - P.fromSize) * (size + 0.5)) / 3);
+				for (let i = 0; i < P.count; i++) {
+					if (bucket[i] === b) ctx.fillText(GLYPHS[glyph[i]], xs[i], ys[i]);
+				}
+			}
+		}
+
+		// Either grid rebuilt (fonts loaded, resize): re-pair the characters
+		for (const el of [name, heading]) {
+			el.addEventListener('chargrid', () => {
+				particles = null;
+				lastP = -1;
+				render();
+			});
+		}
+
+		let queued = false;
+		addEventListener(
+			'scroll',
+			() => {
+				if (queued) return;
+				queued = true;
+				requestAnimationFrame(() => {
+					queued = false;
+					render();
+				});
+			},
+			{ passive: true },
+		);
+		addEventListener('resize', resize);
+		resize();
+	}
+</script>

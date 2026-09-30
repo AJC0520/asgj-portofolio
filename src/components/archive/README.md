@@ -7,3 +7,10 @@ Earlier versions of the hero → About transition, kept for reference. Nothing i
 - **MapTraffic.astro**: the car light as an SVG overlay, before it moved into `MapCanvas.astro`.
 
 To bring one back, move it out of this folder and import it in a page. CardDeck expects `slot="front"` / `slot="back"` children.
+
+## Follow the light (retired)
+
+A click-driven version, where the camera zoomed into the map and followed a car before the About page opened.
+
+- **about-page.astro**: the separate `/about` page. Its imports are relative to `src/pages/`, so move it back there to use it.
+- The follow mode is still in `MapCanvas.astro` (`mapfollow` / `mapreset` events), and the page sweep is in `src/scripts/sweep.ts`, used by the header's "AJ." link on other pages. Nothing on the current page triggers the follow mode.

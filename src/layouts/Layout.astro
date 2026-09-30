@@ -29,7 +29,7 @@ const ogImage = Astro.site ? new URL('/og.png', Astro.site).href : undefined;
 		<meta name="generator" content={Astro.generator} />
 		<title>{title}</title>
 		<meta name="description" content={description} />
-		<meta name="theme-color" content="#141416" />
+		<meta name="theme-color" content="#04151f" />
 		{canonical && <link rel="canonical" href={canonical} />}
 
 		<meta property="og:type" content="website" />
@@ -43,6 +43,25 @@ const ogImage = Astro.site ? new URL('/og.png', Astro.site).href : undefined;
 		<meta name="twitter:card" content={ogImage ? 'summary_large_image' : 'summary'} />
 		<meta name="twitter:title" content={title} />
 		<meta name="twitter:description" content={description} />
+
+		<!-- Arriving through a transition sweep? Flag it before the first paint so content can ease in -->
+		<script is:inline>
+			try {
+				if (sessionStorage.getItem('arrive') === 'sweep') {
+					sessionStorage.removeItem('arrive');
+					document.documentElement.dataset.arrive = 'sweep';
+				}
+			} catch {}
+		</script>
+
+		<!-- Prepare same-site pages in the background when a link is hovered (Chrome/Edge) -->
+		<script
+			type="speculationrules"
+			is:inline
+			set:html={JSON.stringify({
+				prerender: [{ where: { href_matches: '/*' }, eagerness: 'moderate' }],
+			})}
+		/>
 	</head>
 	<body>
 		<Header />
@@ -57,15 +76,54 @@ const ogImage = Astro.site ? new URL('/og.png', Astro.site).href : undefined;
 		margin: 0;
 		width: 100%;
 		height: 100%;
-		background: #141416;
+		background: var(--color-hero);
 		color: #e9c85b;
 	}
 </style>
 
 <style is:global>
+	/* Site palette. Use the role tokens in components; the named colours are there for new pages/sections. */
+	:root {
+		--color-ink-black: #04151f; /* hero */
+		--color-burnt-orange: #c44900; /* about */
+		--color-dark-slate-grey: #183a37;
+		--color-wheat: #efd6ac;
+		--color-midnight-violet: #432534;
+
+		--color-hero: var(--color-ink-black);
+		--color-about: var(--color-burnt-orange);
+	}
+
 	/* Page changes animate natively (supporting browsers); the header keeps its place across them */
 	@view-transition {
 		navigation: auto;
+	}
+
+	/* Arrival after a transition sweep: the page's colour is already on screen, so its content
+	   eases up into place in sequence instead of popping in (--ease-out-quart, entering) */
+	html[data-arrive='sweep'] [data-enter] {
+		animation: arrive 700ms cubic-bezier(0.165, 0.84, 0.44, 1) backwards;
+		animation-delay: calc(120ms + var(--i, 0) * 90ms);
+	}
+
+	@keyframes arrive {
+		from {
+			opacity: 0;
+			transform: translateY(24px);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		html[data-arrive='sweep'] [data-enter] {
+			animation: none;
+		}
+	}
+
+	/* In-page links (the header's About) glide instead of jumping */
+	@media (prefers-reduced-motion: no-preference) {
+		html {
+			scroll-behavior: smooth;
+		}
 	}
 
 	/* Hide the scrollbar but keep scrolling */

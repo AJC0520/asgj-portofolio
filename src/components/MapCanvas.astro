@@ -1,17 +1,22 @@
 ---
-// Tromsø street map + the "car" light, drawn on canvas so the map stays sharp at any zoom.
-// Map: public/tromso-map.svg (scripts/build-map.mjs). Routes: public/tromso-routes.json (scripts/build-routes.mjs).
+// Tromsø street map + the "car" light. Map: public/tromso-map.svg (scripts/build-map.mjs).
+// Routes: public/tromso-routes.json (scripts/build-routes.mjs).
 //
 // At rest it's a background: the whole map, faint, with a car light driving a random route now and then.
 // "Follow the light": dispatch `new CustomEvent('mapfollow', { detail: { resolve } })` on the element and the
-// camera zooms in and follows a car along a street; `resolve` gets the car's final screen position.
+// camera zooms in and follows a car along a street; `resolve` gets the car's final screen position and
+// heading (radians, screen space).
 // `new CustomEvent('mapreset')` puts it back at rest (e.g. when the page is restored from the back/forward cache).
-// Two canvases: the map redraws only when the camera or size changes; the car redraws only while driving.
+//
+// Performance: the map is drawn ONCE, at 2× zoom resolution, into a large canvas. The camera only moves
+// that canvas with a CSS transform (composited, no redraw), line brightness is the canvas's opacity, and the
+// top fade is a gradient overlay. Only the car's small light is drawn per frame, and only while it drives.
 ---
 
 <div class="map" data-zoom-map aria-hidden="true">
 	<canvas class="map-base"></canvas>
 	<canvas class="map-car"></canvas>
+	<div class="map-fade"></div>
 </div>
 
 <style>
@@ -19,14 +24,32 @@
 		position: absolute;
 		inset: 0;
 		z-index: -1;
+		overflow: hidden;
 		pointer-events: none;
 	}
 
-	canvas {
+	.map-base {
+		position: absolute;
+		top: 0;
+		left: 0;
+		transform-origin: 0 0;
+		opacity: 0; /* fades in once drawn */
+		will-change: transform, opacity;
+	}
+
+	.map-car {
 		position: absolute;
 		inset: 0;
 		width: 100%;
 		height: 100%;
+	}
+
+	/* Fades the map toward the top at rest (keeps the intro clean); lifted as the camera goes in */
+	.map-fade {
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(to bottom, var(--color-hero) 10%, transparent 70%);
+		will-change: opacity;
 	}
 </style>
 
@@ -35,12 +58,9 @@
 	const VIEW = { width: 1600, height: 1350 }; // viewBox of the generated SVG
 	const COLOR = '#f4efe1';
 	const ALPHA = [0.1, 0.32]; // map line opacity at rest → zoomed in (closer = clearer)
-	const LINE_GROWTH = 0.55; // past SNAPSHOT_ZOOM, lines thicken slower than the zoom itself
-	// Performance: up to this zoom the map is a scaled snapshot (one bitmap blit per frame);
-	// beyond it, only the tiles on screen are stroked as vectors, so it stays sharp and cheap
-	const SNAPSHOT_ZOOM = 1.6;
-	const TILES = 10; // tiles per side for culling
-	const MAX_DPR = 1.5; // the lines are faint enough that 1.5× is indistinguishable from 2–3×
+	const RASTER_ZOOM = 2; // the map is drawn once at this zoom: sharp at rest, slightly soft when fully in
+	const MAX_PIXELS = 12_000_000; // cap on that one canvas (~48 MB) for very large screens
+	const MAX_DPR = 1.5; // the car canvas; the light is soft anyway
 
 	// Car
 	const SPEED = 550; // map units per second (ambient drives)
@@ -65,17 +85,17 @@
 	if (root) {
 		const base = root.querySelector<HTMLCanvasElement>('.map-base')!;
 		const car = root.querySelector<HTMLCanvasElement>('.map-car')!;
-		const bctx = base.getContext('2d')!;
+		const fade = root.querySelector<HTMLElement>('.map-fade')!;
 		const cctx = car.getContext('2d')!;
 		const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-		type Tile = { path: Path2D; x0: number; y0: number; x1: number; y1: number };
 		type Camera = { zoom: number; cx: number; cy: number }; // cx/cy: map point at the centre of the screen
 		type Cam = { zoom: number; scale: number; x: number; y: number };
 
 		const REST: Camera = { zoom: 1, cx: VIEW.width / 2, cy: VIEW.height / 2 };
-		let layers: { width: number; tiles: Tile[] }[] = [];
-		let snapshot: HTMLCanvasElement | null = null;
+		let svgText: Promise<string> | null = null;
+		let mapReady = false;
+		let rasterScale = 1; // canvas pixels per map unit
 		let view: Camera = { ...REST };
 		let width = 0;
 		let height = 0;
@@ -87,91 +107,68 @@
 			return { zoom: camera.zoom, scale, x: width / 2 - scale * camera.cx, y: height / 2 - scale * camera.cy };
 		}
 
-		function apply(ctx: CanvasRenderingContext2D, cam: Cam) {
-			ctx.setTransform(dpr * cam.scale, 0, 0, dpr * cam.scale, dpr * cam.x, dpr * cam.y);
-		}
-
-		// How far "in" we are, 0 at rest → 1 at FOLLOW_ZOOM: drives line opacity and the top fade
+		// How far "in" we are, 0 at rest → 1 at FOLLOW_ZOOM
 		const depth = (zoom: number) => clamp(Math.log(zoom) / Math.log(FOLLOW_ZOOM));
 
-		// Lines are specified in map units. They scale with the zoom up to SNAPSHOT_ZOOM (like the
-		// snapshot does), then grow more gently, so the hand-off between the two is seamless
-		const lineScale = (zoom: number) =>
-			zoom <= SNAPSHOT_ZOOM ? 1 : (SNAPSHOT_ZOOM * Math.pow(zoom / SNAPSHOT_ZOOM, LINE_GROWTH)) / zoom;
+		// Camera → compositor properties only: no canvas work
+		function place() {
+			const cam = project(view);
+			const d = depth(cam.zoom);
+			base.style.transform = `translate3d(${cam.x}px, ${cam.y}px, 0) scale(${cam.scale / rasterScale})`;
+			if (mapReady) base.style.opacity = `${ALPHA[0] + (ALPHA[1] - ALPHA[0]) * d}`;
+			fade.style.opacity = `${1 - d}`;
+		}
 
-		function strokeTiles(ctx: CanvasRenderingContext2D, cam: Cam, cull: boolean) {
-			// Visible area in map units, padded so thick lines at the edge aren't clipped early
-			const pad = 10;
-			const vx0 = -cam.x / cam.scale - pad;
-			const vy0 = -cam.y / cam.scale - pad;
-			const vx1 = (width - cam.x) / cam.scale + pad;
-			const vy1 = (height - cam.y) / cam.scale + pad;
+		// The one expensive step: draw the whole map, once per size
+		async function renderMap() {
+			svgText ??= fetch('/tromso-map.svg').then((res) => res.text());
+			const svg = await svgText;
+			const s0 = Math.max(width / VIEW.width, height / VIEW.height);
+			rasterScale = Math.min(s0 * RASTER_ZOOM, Math.sqrt(MAX_PIXELS / (VIEW.width * VIEW.height)));
+			base.width = Math.round(VIEW.width * rasterScale);
+			base.height = Math.round(VIEW.height * rasterScale);
+			base.style.width = `${base.width}px`;
+			base.style.height = `${base.height}px`;
+
+			const ctx = base.getContext('2d')!;
+			ctx.setTransform(rasterScale, 0, 0, rasterScale, 0, 0);
 			ctx.strokeStyle = COLOR;
 			ctx.lineCap = 'round';
 			ctx.lineJoin = 'round';
-			for (const layer of layers) {
-				ctx.lineWidth = layer.width * lineScale(cam.zoom);
-				for (const tile of layer.tiles) {
-					if (cull && (tile.x1 < vx0 || tile.x0 > vx1 || tile.y1 < vy0 || tile.y0 > vy1)) continue;
-					ctx.stroke(tile.path);
-				}
-			}
-		}
-
-		// The whole map at rest, drawn once per size; scaled up for the first part of a zoom
-		function renderSnapshot() {
-			snapshot = document.createElement('canvas');
-			snapshot.width = base.width;
-			snapshot.height = base.height;
-			const sctx = snapshot.getContext('2d')!;
-			const rest = project(REST);
-			apply(sctx, rest);
-			strokeTiles(sctx, rest, false);
-		}
-
-		function drawMap() {
-			if (!layers.length || !width) return;
-			const cam = project(view);
-			const d = depth(cam.zoom);
-			bctx.setTransform(1, 0, 0, 1, 0, 0);
-			bctx.clearRect(0, 0, base.width, base.height);
-			bctx.globalAlpha = ALPHA[0] + (ALPHA[1] - ALPHA[0]) * d;
-
-			if (cam.zoom <= SNAPSHOT_ZOOM && snapshot) {
-				const rest = project(REST);
-				const k = cam.scale / rest.scale;
-				bctx.setTransform(k, 0, 0, k, dpr * (cam.x - k * rest.x), dpr * (cam.y - k * rest.y));
-				bctx.drawImage(snapshot, 0, 0);
-			} else {
-				apply(bctx, cam);
-				strokeTiles(bctx, cam, true);
+			// Line widths are in map units at rest zoom; the canvas is RASTER_ZOOM× bigger, so thicken to match
+			for (const [, w, d] of svg.matchAll(/<path stroke-width="([\d.]+)" d="([^"]+)"\/>/g)) {
+				ctx.lineWidth = (Number(w) * s0 * RASTER_ZOOM) / rasterScale;
+				ctx.stroke(new Path2D(d));
 			}
 
-			// Fade toward the top at rest (keeps the intro clean); the fade lifts as you go in
-			bctx.setTransform(1, 0, 0, 1, 0, 0);
-			bctx.globalAlpha = 1;
-			bctx.globalCompositeOperation = 'destination-in';
-			const fade = bctx.createLinearGradient(0, 0, 0, base.height);
-			fade.addColorStop(0.1, `rgba(0, 0, 0, ${d})`);
-			fade.addColorStop(0.7, '#000');
-			bctx.fillStyle = fade;
-			bctx.fillRect(0, 0, base.width, base.height);
-			bctx.globalCompositeOperation = 'source-over';
+			const first = !mapReady;
+			mapReady = true;
+			place();
+			// Appear gently the first time instead of popping in
+			if (first) base.animate([{ opacity: 0 }, { opacity: base.style.opacity }], { duration: 800, easing: 'ease-out' });
 		}
 
+		let resizeTimer = 0;
 		function resize() {
 			width = root!.clientWidth;
 			height = root!.clientHeight;
 			dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
-			for (const canvas of [base, car]) {
-				canvas.width = Math.round(width * dpr);
-				canvas.height = Math.round(height * dpr);
-			}
-			if (layers.length) renderSnapshot();
-			drawMap();
+			car.width = Math.round(width * dpr);
+			car.height = Math.round(height * dpr);
+			place();
+			if (!mapReady) return;
+			clearTimeout(resizeTimer);
+			resizeTimer = window.setTimeout(renderMap, 150);
 		}
 
 		new ResizeObserver(resize).observe(root);
+
+		const whenIdle = (fn: () => void, timeout: number) =>
+			'requestIdleCallback' in window ? requestIdleCallback(fn, { timeout }) : setTimeout(fn, timeout);
+		// The one-time map draw is a long task: keep it out of the name's intro (~1.6 s), then do it when idle.
+		// A page being prepared in the background (prerendered) isn't visible yet, so it can draw right away.
+		const prerendering = (document as Document & { prerendering?: boolean }).prerendering;
+		setTimeout(() => whenIdle(() => renderMap(), 1000), prerendering ? 0 : 1700);
 
 		// Path data (M/m/L/l, as written by scripts/svg-path.mjs) → polylines of absolute points
 		function decodePath(d: string) {
@@ -190,44 +187,6 @@
 			}
 			return polylines;
 		}
-
-		// Group streets into a grid of tiles (by their centre), each with the bounds of its streets
-		function toTiles(polylines: number[][][]): Tile[] {
-			const groups = new Map<number, { lines: number[][][]; x0: number; y0: number; x1: number; y1: number }>();
-			for (const line of polylines) {
-				let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-				for (const [x, y] of line) {
-					x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
-				}
-				const col = Math.min(TILES - 1, Math.max(0, Math.floor((((x0 + x1) / 2) / VIEW.width) * TILES)));
-				const row = Math.min(TILES - 1, Math.max(0, Math.floor((((y0 + y1) / 2) / VIEW.height) * TILES)));
-				const key = row * TILES + col;
-				const group = groups.get(key) ?? { lines: [], x0, y0, x1, y1 };
-				group.lines.push(line);
-				group.x0 = Math.min(group.x0, x0); group.y0 = Math.min(group.y0, y0);
-				group.x1 = Math.max(group.x1, x1); group.y1 = Math.max(group.y1, y1);
-				groups.set(key, group);
-			}
-			return [...groups.values()].map(({ lines, x0, y0, x1, y1 }) => {
-				const path = new Path2D();
-				for (const line of lines) {
-					path.moveTo(line[0][0], line[0][1]);
-					for (let i = 1; i < line.length; i++) path.lineTo(line[i][0], line[i][1]);
-				}
-				return { path, x0, y0, x1, y1 };
-			});
-		}
-
-		fetch('/tromso-map.svg')
-			.then((res) => res.text())
-			.then((svg) => {
-				layers = [...svg.matchAll(/<path stroke-width="([\d.]+)" d="([^"]+)"\/>/g)].map(([, w, d]) => ({
-					width: Number(w),
-					tiles: toTiles(decodePath(d)),
-				}));
-				renderSnapshot();
-				drawMap();
-			});
 
 		// ——— Car ———
 
@@ -280,10 +239,12 @@
 			if (!route) return;
 
 			const cam = project(view);
-			apply(cctx, cam);
+			cctx.setTransform(dpr * cam.scale, 0, 0, dpr * cam.scale, dpr * cam.x, dpr * cam.y);
 			cctx.strokeStyle = CAR_COLOR;
 			cctx.lineCap = 'round';
 			cctx.lineJoin = 'round';
+			// Keeps the light's on-screen width steady as the camera zooms (it's a light, not paint on the road)
+			const unit = 1 / Math.pow(cam.zoom, 0.45);
 			// A single dash per stroke, ending at the head, trailing back along the route
 			for (const [dash, lineWidth, strength] of [
 				[GLOW, 7, 0.25],
@@ -291,7 +252,7 @@
 			]) {
 				cctx.setLineDash([dash, route.length + GLOW * 2]);
 				cctx.lineDashOffset = dash - head;
-				cctx.lineWidth = lineWidth * lineScale(cam.zoom);
+				cctx.lineWidth = lineWidth * unit;
 				cctx.globalAlpha = strength * clamp(alpha);
 				cctx.stroke(route.path);
 			}
@@ -344,10 +305,13 @@
 			return nearest[Math.floor(Math.random() * nearest.length)]?.route;
 		}
 
-		async function follow(resolve: (point: { x: number; y: number }) => void) {
+		type Stop = { x: number; y: number; angle: number };
+
+		async function follow(resolve: (stop: Stop) => void) {
 			await loadRoutes();
+			if (!mapReady) await renderMap(); // clicked before the idle draw happened
 			const route = pickRoute();
-			if (!route || !layers.length) return resolve({ x: width / 2, y: height / 2 });
+			if (!route) return resolve({ x: width / 2, y: height / 2, angle: 0 });
 
 			following = true;
 			drive++; // cancel any ambient drive
@@ -369,33 +333,31 @@
 					cx: REST.cx + (hx - REST.cx) * dive,
 					cy: REST.cy + (hy - REST.cy) * dive,
 				};
-				drawMap();
+				place();
 				drawCar(route, head, (t - FOLLOW_DRIVE_START) / 200);
 
 				if (t < FOLLOW_MS) requestAnimationFrame(frame);
 				else {
 					const cam = project(view);
-					resolve({ x: cam.x + cam.scale * hx, y: cam.y + cam.scale * hy });
+					const [bx, by] = pointAt(route, Math.max(0, head - 12));
+					resolve({ x: cam.x + cam.scale * hx, y: cam.y + cam.scale * hy, angle: Math.atan2(hy - by, hx - bx) });
 				}
 			});
 		}
 
 		root.addEventListener('mapfollow', (e) => {
-			follow((e as CustomEvent<{ resolve: (p: { x: number; y: number }) => void }>).detail.resolve);
+			follow((e as CustomEvent<{ resolve: (stop: Stop) => void }>).detail.resolve);
 		});
 
 		root.addEventListener('mapreset', () => {
 			following = false;
 			view = { ...REST };
-			drawMap();
+			place();
 			drawCar(null);
 		});
 
 		if (!reduceMotion) {
-			const start = () => loadRoutes().then(() => routes.length && loop());
-			// Not needed for first paint: load the routes once the page is idle
-			if ('requestIdleCallback' in window) requestIdleCallback(start);
-			else setTimeout(start, 1500);
+			whenIdle(() => loadRoutes().then(() => routes.length && loop()), 2500);
 		}
 	}
 </script>

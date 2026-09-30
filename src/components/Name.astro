@@ -55,10 +55,22 @@ const name = 'AsgeirJacobsen.';
 		settle: Float32Array;
 		char: Uint8Array;
 		scrambleUntil: Float64Array;
+		onLayer: Uint8Array; // 1 = drawn into the settled-characters layer
 		count: number;
 	};
+	// Settled characters are drawn once into this layer; each frame copies it in one step and only draws
+	// the characters that are scrambling. Most frames after the intro change nothing and are skipped.
+	let layer: HTMLCanvasElement;
+	let lctx: CanvasRenderingContext2D;
+	let dirty = true;
 	let cellH = 8;
 	let cellW = 5;
+
+	// The character grid, for the name → heading morph (NameMorph.astro): cell size, positions, characters
+	Object.defineProperty(h1, 'charGrid', {
+		get: () =>
+			cells && { cellW, cellH, xs: cells.x, ys: cells.y, chars: cells.char, count: cells.count },
+	});
 	let mask: HTMLCanvasElement;
 	let cssWidth = 0;
 	let cssHeight = 0;
@@ -113,6 +125,14 @@ const name = 'AsgeirJacobsen.';
 		const mctx = mask.getContext('2d', { willReadFrequently: true })!;
 		mctx.setTransform(scale, 0, 0, scale, 0, 0);
 		drawName(mctx);
+
+		layer = document.createElement('canvas');
+		layer.width = canvas.width;
+		layer.height = canvas.height;
+		lctx = layer.getContext('2d')!;
+		lctx.setTransform(scale, 0, 0, scale, 0, 0);
+		if (cells) cells.onLayer.fill(0); // new resolution: redraw settled characters into the new layer
+		dirty = true;
 		return { mctx, scale };
 	}
 
@@ -168,6 +188,7 @@ const name = 'AsgeirJacobsen.';
 			settle: new Float32Array(count),
 			char: new Uint8Array(count),
 			scrambleUntil: new Float64Array(count),
+			onLayer: new Uint8Array(count),
 			count,
 		};
 		for (let i = 0; i < count; i++) {
@@ -179,20 +200,16 @@ const name = 'AsgeirJacobsen.';
 			cells.char[i] = rand(GLYPHS.length);
 		}
 		start = performance.now();
+		h1.dispatchEvent(new CustomEvent('chargrid'));
 	}
 
 	function draw(now: number) {
 		const t = now - start;
-		const { x, y, appear, settle, char, scrambleUntil, count } = cells;
-		const width = cssWidth;
-		const height = cssHeight;
+		const { x, y, appear, settle, char, scrambleUntil, onLayer, count } = cells;
 		const introDone = t > SWEEP_MS + 120 + SETTLE_MIN + SETTLE_JITTER;
 		tick++;
 
-		ctx.clearRect(0, 0, width, height);
-		ctx.font = `700 ${cellH * 1.15}px ui-monospace, "SF Mono", Menlo, Consolas, monospace`;
-		ctx.textAlign = 'center';
-		ctx.textBaseline = 'middle';
+		const glyphFont = `700 ${cellH * 1.15}px ui-monospace, "SF Mono", Menlo, Consolas, monospace`;
 		const cx = cellW / 2;
 		const cy = cellH / 2 + 0.5;
 
@@ -204,27 +221,53 @@ const name = 'AsgeirJacobsen.';
 		}
 
 		const reroll = tick % 3 === 0;
-		const isSettled = (i: number) => t >= settle[i] && now >= scrambleUntil[i];
+		let scrambling = 0;
 
-		// Settled cells: yellow characters, nothing behind them
-		ctx.fillStyle = COLOR;
+		// Keep the settled layer in sync: draw characters that just settled, erase ones that started scrambling
+		lctx.font = glyphFont;
+		lctx.textAlign = 'center';
+		lctx.textBaseline = 'middle';
+		lctx.fillStyle = COLOR;
 		for (let i = 0; i < count; i++) {
-			if (isSettled(i)) ctx.fillText(GLYPHS[char[i]], x[i] + cx, y[i] + cy);
-		}
-
-		// Scrambling cells: paler, cycling characters
-		ctx.fillStyle = SCRAMBLE_COLOR;
-		for (let i = 0; i < count; i++) {
-			if (t >= appear[i] && !isSettled(i)) {
-				if (reroll) char[i] = rand(GLYPHS.length);
-				ctx.fillText(GLYPHS[char[i]], x[i] + cx, y[i] + cy);
+			const settled = t >= settle[i] && now >= scrambleUntil[i];
+			if (settled && !onLayer[i]) {
+				lctx.fillText(GLYPHS[char[i]], x[i] + cx, y[i] + cy);
+				onLayer[i] = 1;
+				dirty = true;
+			} else if (!settled && onLayer[i]) {
+				lctx.clearRect(x[i], y[i], cellW, cellH);
+				onLayer[i] = 0;
+				dirty = true;
 			}
+			if (!settled && t >= appear[i]) scrambling++;
 		}
 
-		// Clip everything to the exact letterforms
-		ctx.globalCompositeOperation = 'destination-in';
-		ctx.drawImage(mask, 0, 0, width, height);
-		ctx.globalCompositeOperation = 'source-over';
+		// Scrambling characters change only on reroll frames; anything else is a frame with nothing to do
+		if (scrambling && reroll) dirty = true;
+		if (dirty) {
+			dirty = false;
+			ctx.clearRect(0, 0, cssWidth, cssHeight);
+			ctx.drawImage(layer, 0, 0, cssWidth, cssHeight);
+
+			// Scrambling cells: paler, cycling characters
+			if (scrambling) {
+				ctx.font = glyphFont;
+				ctx.textAlign = 'center';
+				ctx.textBaseline = 'middle';
+				ctx.fillStyle = SCRAMBLE_COLOR;
+				for (let i = 0; i < count; i++) {
+					if (t >= appear[i] && !onLayer[i]) {
+						if (reroll) char[i] = rand(GLYPHS.length);
+						ctx.fillText(GLYPHS[char[i]], x[i] + cx, y[i] + cy);
+					}
+				}
+			}
+
+			// Clip everything to the exact letterforms
+			ctx.globalCompositeOperation = 'destination-in';
+			ctx.drawImage(mask, 0, 0, cssWidth, cssHeight);
+			ctx.globalCompositeOperation = 'source-over';
+		}
 
 		running = shouldRun();
 		if (running) requestAnimationFrame(draw);
@@ -310,5 +353,18 @@ const name = 'AsgeirJacobsen.';
 		lastWidth = h1.clientWidth;
 		build(!reduceMotion);
 		draw(performance.now());
+		// Prepared in the background (prerendered): the heavy build is done already, but the intro
+		// should play when the visitor actually sees the page, not while it was hidden
+		const doc = document as Document & { prerendering?: boolean };
+		if (doc.prerendering) {
+			document.addEventListener(
+				'prerenderingchange',
+				() => {
+					start = performance.now();
+					resume();
+				},
+				{ once: true },
+			);
+		}
 	});
 </script>

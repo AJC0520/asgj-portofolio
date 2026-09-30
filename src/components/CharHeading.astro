@@ -1,0 +1,183 @@
+---
+// A heading with a character grid behind it: the text's letterforms filled with small monospace characters,
+// like the hero name. Exposes the grid as `element.charGrid` so the name → heading morph (NameMorph.astro)
+// can land on it.
+//   look="characters": the characters are what you see (the real text is kept for screen readers)
+//   look="solid":      the real text is what you see; the grid is invisible and only guides the morph,
+//                      whose characters condense into the solid letters
+// The element that ends up visible is marked [data-morph-final].
+
+interface Props {
+	text: string;
+	as?: 'h1' | 'h2' | 'h3';
+	look?: 'characters' | 'solid';
+}
+
+const { text, as: Tag = 'h2', look = 'characters' } = Astro.props;
+const solid = look === 'solid';
+---
+
+<Tag class="char-heading" data-text={text} data-look={look}>
+	{solid ? <span class="text" data-morph-final>{text}</span> : <span class="sr-only">{text}</span>}
+	<canvas aria-hidden="true" data-morph-final={solid ? undefined : ''}></canvas>
+</Tag>
+
+<style>
+	.char-heading {
+		position: relative;
+		margin: 0;
+	}
+
+	canvas {
+		display: block;
+	}
+
+	/* Solid look: the grid lines up with the real text but is never shown */
+	[data-look='solid'] canvas {
+		position: absolute;
+		top: 0;
+		left: 0;
+		visibility: hidden;
+	}
+
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+</style>
+
+<script>
+	// Same character set and glyph rendering as Name.astro, so the two read as one system
+	const GLYPHS = 'abcdefghijklmnopqrstuvwxyz0123456789#%&*+=-/<>';
+	const COLOR = '#f4efe1';
+	const TRACKING = -0.04; // em, matches the heading's CSS letter-spacing
+	const glyphFont = (cellH: number) => `700 ${cellH * 1.15}px ui-monospace, "SF Mono", Menlo, Consolas, monospace`;
+
+	type Grid = { cellW: number; cellH: number; xs: Float32Array; ys: Float32Array; chars: Uint8Array; count: number };
+
+	for (const heading of document.querySelectorAll<HTMLElement>('.char-heading')) {
+		const canvas = heading.querySelector('canvas')!;
+		const ctx = canvas.getContext('2d')!;
+		const text = heading.dataset.text!;
+		let grid: Grid | null = null;
+
+		Object.defineProperty(heading, 'charGrid', { get: () => grid });
+
+		function build() {
+			const style = getComputedStyle(heading);
+			const fontSize = parseFloat(style.fontSize);
+			const font = `${style.fontWeight} ${fontSize}px ${style.fontFamily}`;
+			const lineHeight = parseFloat(style.lineHeight) || fontSize * 0.95;
+			const width = heading.clientWidth;
+
+			// Measure with the heading's own font and tracking, then wrap words to the available width
+			const measure = document.createElement('canvas').getContext('2d')!;
+			measure.font = font;
+			if ('letterSpacing' in measure) measure.letterSpacing = `${TRACKING * fontSize}px`;
+			const lines: string[] = [];
+			let line = '';
+			for (const word of text.split(' ')) {
+				const next = line ? `${line} ${word}` : word;
+				if (line && measure.measureText(next).width > width) {
+					lines.push(line);
+					line = word;
+				} else line = next;
+			}
+			lines.push(line);
+
+			const metrics = measure.measureText(text);
+			const ascent = Math.ceil(metrics.actualBoundingBoxAscent);
+
+			// Solid look: align the grid with where the browser actually draws the text's first line
+			const textNode = heading.querySelector<HTMLElement>('.text');
+			if (textNode) {
+				const range = document.createRange();
+				range.selectNodeContents(textNode);
+				const firstLine = range.getClientRects()[0];
+				if (firstLine) {
+					const baseline = firstLine.top - heading.getBoundingClientRect().top + metrics.fontBoundingBoxAscent;
+					canvas.style.top = `${baseline - ascent}px`;
+				}
+			}
+			const descent = Math.ceil(metrics.actualBoundingBoxDescent);
+			const height = Math.ceil((lines.length - 1) * lineHeight + ascent + descent);
+
+			const scale = Math.min(window.devicePixelRatio || 1, 2);
+			canvas.width = Math.round(width * scale);
+			canvas.height = Math.round(height * scale);
+			canvas.style.width = `${width}px`;
+			canvas.style.height = `${height}px`;
+
+			// The letterforms as a mask: sampled for the character grid, then used to clip the characters
+			const mask = document.createElement('canvas');
+			mask.width = canvas.width;
+			mask.height = canvas.height;
+			const mctx = mask.getContext('2d', { willReadFrequently: true })!;
+			mctx.setTransform(scale, 0, 0, scale, 0, 0);
+			mctx.font = font;
+			if ('letterSpacing' in mctx) mctx.letterSpacing = `${TRACKING * fontSize}px`;
+			lines.forEach((l, i) => mctx.fillText(l, 0, ascent + i * lineHeight));
+			const alpha = mctx.getImageData(0, 0, mask.width, mask.height).data;
+
+			const cellH = Math.max(5, Math.round(fontSize / 20));
+			const cellW = Math.max(3, Math.round(cellH * 0.6));
+			const xs: number[] = [];
+			const ys: number[] = [];
+			const touches = (x0: number, y0: number) => {
+				for (let y = y0; y < Math.min(y0 + cellH, height); y += 2) {
+					for (let x = x0; x < Math.min(x0 + cellW, width); x += 2) {
+						const px = Math.min(mask.width - 1, Math.floor(x * scale));
+						const py = Math.min(mask.height - 1, Math.floor(y * scale));
+						if (alpha[(py * mask.width + px) * 4 + 3] > 0) return true;
+					}
+				}
+				return false;
+			};
+			for (let y = 0; y < height; y += cellH) {
+				for (let x = 0; x < width; x += cellW) {
+					if (touches(x, y)) {
+						xs.push(x);
+						ys.push(y);
+					}
+				}
+			}
+			const chars = Uint8Array.from(xs, () => Math.floor(Math.random() * GLYPHS.length));
+
+			// Static: draw once
+			ctx.setTransform(scale, 0, 0, scale, 0, 0);
+			ctx.clearRect(0, 0, width, height);
+			ctx.font = glyphFont(cellH);
+			ctx.textAlign = 'center';
+			ctx.textBaseline = 'middle';
+			ctx.fillStyle = COLOR;
+			for (let i = 0; i < xs.length; i++) ctx.fillText(GLYPHS[chars[i]], xs[i] + cellW / 2, ys[i] + cellH / 2 + 0.5);
+			ctx.globalCompositeOperation = 'destination-in';
+			ctx.drawImage(mask, 0, 0, width, height);
+			ctx.globalCompositeOperation = 'source-over';
+
+			grid = { cellW, cellH, xs: Float32Array.from(xs), ys: Float32Array.from(ys), chars, count: xs.length };
+			heading.dispatchEvent(new CustomEvent('chargrid'));
+		}
+
+		let lastWidth = 0;
+		let timer = 0;
+		new ResizeObserver(() => {
+			if (heading.clientWidth === lastWidth) return;
+			clearTimeout(timer);
+			timer = window.setTimeout(() => {
+				lastWidth = heading.clientWidth;
+				build();
+			}, 120);
+		}).observe(heading);
+
+		const style = getComputedStyle(heading);
+		document.fonts.load(`${style.fontWeight} 100px ${style.fontFamily}`).finally(() => {
+			lastWidth = heading.clientWidth;
+			build();
+		});
+	}
+</script>
