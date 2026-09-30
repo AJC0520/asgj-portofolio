@@ -31,6 +31,11 @@
 		opacity: 1;
 	}
 
+	/* Its map copy only lines up with the map at rest: step aside while the camera zooms */
+	:global([data-zooming]) .spot {
+		opacity: 0;
+	}
+
 	.spot-map {
 		position: absolute;
 		top: 0;

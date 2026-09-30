@@ -1,0 +1,148 @@
+---
+// Scroll transition: the camera dives into the front section's map, then the back section opens out of it.
+// The front section marks what takes part:
+//   [data-zoom-map]   the map to zoom (receives `mapzoom` events with t in 0–1, see MapCanvas.astro)
+//   [data-zoom-fade]  foreground that flies past the camera and fades out first
+---
+
+<div class="zoom-deck">
+	<div class="stage">
+		<div class="scene">
+			<slot name="front" />
+		</div>
+		<div class="reveal">
+			<slot name="back" />
+		</div>
+	</div>
+</div>
+
+<style>
+	.zoom-deck {
+		/* 100vh of stage + 200vh of scroll that drives the dive */
+		height: 300dvh;
+	}
+
+	.stage {
+		position: sticky;
+		top: 0;
+		height: 100dvh;
+		overflow: hidden;
+		background: #141416;
+	}
+
+	.scene,
+	.reveal {
+		position: absolute;
+		inset: 0;
+	}
+
+	/* Opens as a circle out of the point the camera dives into (centre of the screen by then) */
+	.reveal {
+		clip-path: circle(0 at 50% 50%);
+		pointer-events: none;
+	}
+
+	.reveal[data-open] {
+		pointer-events: auto;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.zoom-deck {
+			height: auto;
+		}
+
+		.stage {
+			position: static;
+			height: auto;
+			overflow: visible;
+		}
+
+		.scene,
+		.reveal {
+			position: relative;
+		}
+
+		.reveal {
+			clip-path: none;
+			pointer-events: auto;
+		}
+	}
+</style>
+
+<script>
+	// --ease-in-out-cubic: the camera accelerates into the dive and settles, like a physical move
+	const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+	const clamp = (t: number) => Math.min(1, Math.max(0, t));
+	const phase = (p: number, from: number, to: number) => easeInOutCubic(clamp((p - from) / (to - from)));
+
+	const FLY_SCALE = 0.3; // how much bigger the foreground gets as it flies past
+
+	const deck = document.querySelector<HTMLElement>('.zoom-deck');
+
+	if (deck && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+		const scene = deck.querySelector<HTMLElement>('.scene')!;
+		const reveal = deck.querySelector<HTMLElement>('.reveal')!;
+		const map = scene.querySelector<HTMLElement>('[data-zoom-map]');
+		const fading = [...scene.querySelectorAll<HTMLElement>('[data-zoom-fade]')];
+
+		// Foreground scales away from the screen centre, so it streams outward past the camera
+		function setOrigins() {
+			const cx = scene.clientWidth / 2;
+			const cy = scene.clientHeight / 2;
+			for (const el of fading) {
+				el.style.transformOrigin = `${cx - el.offsetLeft}px ${cy - el.offsetTop}px`;
+			}
+		}
+
+		let lastZoom = -1;
+		let radius = -1;
+
+		function render() {
+			const scrollable = deck!.offsetHeight - window.innerHeight;
+			const p = clamp(-deck!.getBoundingClientRect().top / scrollable);
+
+			const fly = phase(p, 0, 0.25); // foreground streams past and fades
+			const zoom = phase(p, 0.05, 0.9); // camera dives into the map
+			const open = phase(p, 0.7, 1); // next section opens out of the dive point
+
+			for (const el of fading) {
+				el.style.opacity = `${1 - fly}`;
+				el.style.transform = fly ? `scale(${1 + FLY_SCALE * fly})` : '';
+				// Content that animates itself (the name) pauses as soon as it starts flying away:
+				// it's fading out anyway, and redrawing it while it scales was the main cost of this phase
+				el.toggleAttribute('data-covered', fly > 0);
+			}
+
+			if (map && zoom !== lastZoom) {
+				lastZoom = zoom;
+				map.dispatchEvent(new CustomEvent('mapzoom', { detail: zoom }));
+			}
+			scene.toggleAttribute('data-zooming', p > 0);
+
+			const r = Math.round(open * Math.hypot(scene.clientWidth, scene.clientHeight) * 0.5 + (open ? 1 : 0));
+			if (r !== radius) {
+				radius = r;
+				reveal.style.clipPath = `circle(${r}px at 50% 50%)`;
+			}
+			reveal.toggleAttribute('data-open', open > 0.5);
+			scene.toggleAttribute('data-covered', p >= 1);
+		}
+
+		let queued = false;
+		const schedule = () => {
+			if (queued) return;
+			queued = true;
+			requestAnimationFrame(() => {
+				queued = false;
+				render();
+			});
+		};
+		window.addEventListener('scroll', schedule, { passive: true });
+		window.addEventListener('resize', () => {
+			setOrigins();
+			schedule();
+		});
+		setOrigins();
+		render();
+	}
+</script>

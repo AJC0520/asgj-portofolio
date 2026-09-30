@@ -1,6 +1,7 @@
 ---
 import { Font } from 'astro:assets';
 import CursorBlob from '../components/CursorBlob.astro';
+import Header from '../components/Header.astro';
 
 interface Props {
 	title?: string;
@@ -44,6 +45,7 @@ const ogImage = Astro.site ? new URL('/og.png', Astro.site).href : undefined;
 		<meta name="twitter:description" content={description} />
 	</head>
 	<body>
+		<Header />
 		<slot />
 		<CursorBlob />
 	</body>
@@ -61,6 +63,11 @@ const ogImage = Astro.site ? new URL('/og.png', Astro.site).href : undefined;
 </style>
 
 <style is:global>
+	/* Page changes animate natively (supporting browsers); the header keeps its place across them */
+	@view-transition {
+		navigation: auto;
+	}
+
 	/* Hide the scrollbar but keep scrolling */
 	html {
 		scrollbar-width: none;
