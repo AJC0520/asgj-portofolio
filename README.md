@@ -12,7 +12,7 @@ Personal portfolio site for Asgeir Jacobsen, Informatics student at NTNU. Built 
 
 ## Colour palette
 
-Defined as CSS custom properties in `src/layouts/Layout.astro` (`:root`). Components use the role tokens, and new pages or sections can use the named colours.
+Palette from [Coolors](https://coolors.co/palette/04151f-183a37-efd6ac-c44900-432534). Defined as CSS custom properties in `src/layouts/Layout.astro` (`:root`). Components use the role tokens, and new pages or sections can use the named colours.
 
 | Colour | Hex | Token | Used for |
 | :-- | :-- | :-- | :-- |
