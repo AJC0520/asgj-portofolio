@@ -9,6 +9,7 @@
 import type { AstroComponentFactory } from 'astro/runtime/server/index.js';
 import { logoFor, logos } from './projects/logos';
 import KartTracker from './projects/KartTracker.astro';
+import Olsalget from './projects/Olsalget.astro';
 import ThisWebsite from './projects/ThisWebsite.astro';
 
 type Project = {
@@ -21,7 +22,8 @@ type Project = {
 	accent: string;
 	onAccent: string;
 	brand?: 'karttracker'; // the name in the list uses the project's own logo style
-	vibe?: 'map' | 'race'; // the row's hover background (see "Row vibes" in the styles)
+	vibe?: 'map' | 'race' | 'beer'; // the row's hover background (see "Row vibes" in the styles)
+	slug?: string; // the address (#projects/<slug>); made from the name when not given
 	component?: AstroComponentFactory;
 };
 
@@ -53,12 +55,17 @@ const projects = ([
 	},
 	{
 		year: '2025',
-		name: 'Project two',
-		description: 'Short description of the project: what it does and what you learned making it.',
-		tags: ['Tag', 'Tag'],
-		href: undefined,
-		accent: 'var(--color-saddle-brown)',
-		onAccent: '#f4efe1',
+		name: 'Når stenger ølsalget?',
+		description:
+			'Can I still buy beer? A live countdown to closing time in Norway that knows the rules for weekends and every public holiday.',
+		tags: ['React', 'JavaScript', 'Vite', 'React Router'],
+		href: 'https://github.com/AJC0520/naar-stenger-olsalget',
+		site: 'https://xn--nrstengerlsalget-dob46a.no/',
+		accent: '#f2ae2e', // the site's own beer amber
+		onAccent: '#251c1c',
+		component: Olsalget,
+		vibe: 'beer',
+		slug: 'olsalget',
 	},
 	{
 		year: '2025',
@@ -80,7 +87,7 @@ const projects = ([
 	},
 ] as Project[]).map((project) => ({
 	...project,
-	slug: project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+	slug: project.slug ?? project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
 }));
 ---
 
@@ -343,6 +350,24 @@ const projects = ([
 			linear-gradient(to left, #000, transparent 45%);
 	}
 
+	/* Når stenger ølsalget?: a head of foam along the top of the band, and bubbles fading in from the right.
+	   Hover: the bubbles rise (the layer is one tile taller than the row for that) */
+	.row[data-vibe='beer'] {
+		background:
+			radial-gradient(circle at 50% 0, #fffaf0 8px, transparent 9px) left 6px / 20px 10px repeat-x,
+			linear-gradient(#fffaf0, #fffaf0) top / 100% 7px no-repeat,
+			var(--accent);
+	}
+
+	.row[data-vibe='beer']::after {
+		bottom: -48px;
+		background:
+			radial-gradient(circle, rgba(255, 250, 240, 0.55) 2.5px, transparent 3px) 0 0 / 48px 48px,
+			radial-gradient(circle, rgba(255, 250, 240, 0.4) 1.5px, transparent 2px) 20px 26px / 48px 48px,
+			radial-gradient(circle, rgba(255, 250, 240, 0.45) 3.5px, transparent 4px) 36px 10px / 96px 48px;
+		mask: linear-gradient(to left, #000, transparent 55%);
+	}
+
 	.year,
 	.tags,
 	.meta {
@@ -442,6 +467,10 @@ const projects = ([
 
 		.row[data-vibe='race']:hover::after {
 			transform: translateX(-32px);
+		}
+
+		.row[data-vibe='beer']:hover::after {
+			transform: translateY(-48px);
 		}
 
 		.row:hover .name {

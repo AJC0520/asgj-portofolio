@@ -1,0 +1,732 @@
+---
+// Project view: "Når stenger ølsalget?". Rendered inside the project pane in Projects.astro, which provides the colours
+// (--accent, --on-accent), the slide, the scroll lock and the "All projects" button.
+// The element marked [data-detail-title] receives focus when the view opens.
+//
+// The page is a glass of beer: foam across the top, amber below. Then why it was made, where the holidays come from,
+// the 17 May mode (./olsalget/May17.astro), its first own domain, and how it was made to be found.
+import { logoFor, logos } from './logos';
+import Chat from './olsalget/Chat.astro';
+import May17 from './olsalget/May17.astro';
+
+interface Props {
+	href?: string;
+	project: { year: string; tags: string[]; description: string; site?: string; href?: string };
+}
+
+const { project } = Astro.props;
+
+const facts: { label: string; value?: string; link?: string; tools?: string[] }[] = [
+	{ label: 'Role', value: 'Design & development' },
+	{ label: 'Year', value: project.year },
+	{ label: 'Built with', tools: ['React', 'Vite', 'React Router'] },
+	{ label: 'Holidays from', value: 'webapi.no', link: 'https://webapi.no/' },
+	{ label: 'Hosting', value: 'Netlify' },
+	{ label: 'Live at', value: 'nårstengerølsalget.no', link: project.site },
+];
+
+// What went into being the first answer when someone searches the question
+const seo = [
+	'The answer is in the page title and description, so it shows in the search results before anyone clicks.',
+	'Structured data (schema.org) for the questions and answers, the app itself and the breadcrumbs.',
+	'Two more pages with real content: Spørsmål, eight common questions, and Historie, two hundred years of Norwegian alcohol law.',
+	'A sitemap and robots.txt, and the site verified in Google Search Console.',
+	'Ads only with consent: tracking starts switched off, and a cookie banner asks first.',
+];
+---
+
+<div class="olsalget">
+	<header class="hero">
+		<div class="head">
+			<p class="meta">{project.year} · Live in Norway</p>
+			<h3 data-detail-title tabindex="-1">Når stenger ølsalget?</h3>
+			<p class="translation">“When does beer sale close?”</p>
+		</div>
+		<p class="lead">
+			A one-question website for Norway: can I still buy beer, and for how long? It counts down to closing time and
+			knows the rules for Saturdays, Sundays and every public holiday.
+		</p>
+		<p class="links">
+			{
+				project.site && (
+					<a class="button primary" href={project.site} target="_blank" rel="noopener" data-cursor="plain">
+						Visit nårstengerølsalget.no <span aria-hidden="true">↗</span>
+					</a>
+				)
+			}
+			{
+				project.href && (
+					<a class="button" href={project.href} target="_blank" rel="noopener" data-cursor="plain">
+						View on GitHub <span aria-hidden="true">↗</span>
+					</a>
+				)
+			}
+		</p>
+	</header>
+
+	<dl class="facts">
+		{
+			facts.map((fact) => (
+				<div>
+					<dt>{fact.label}</dt>
+					<dd>
+						{fact.tools ? (
+							fact.tools.map((tool) => {
+								const logo = logoFor(tool);
+								return (
+									<span class="tool">
+										{logo && (
+											<svg viewBox="0 0 24 24" aria-hidden="true">
+												<path d={logos[logo]} />
+											</svg>
+										)}
+										{tool}
+									</span>
+								);
+							})
+						) : fact.link ? (
+							<a href={fact.link} target="_blank" rel="noopener">
+								{fact.value} <span aria-hidden="true">↗</span>
+							</a>
+						) : (
+							fact.value
+						)}
+					</dd>
+				</div>
+			))
+		}
+	</dl>
+
+	<section class="block split" aria-labelledby="ol-why">
+		<div class="intro">
+			<p class="kicker">Why I built it</p>
+			<h4 id="ol-why">The question that always comes up</h4>
+			<p>
+				How often doesn't someone ask “når stenger egentlig ølsalget?” Usually a little too close to eight, and
+				nobody is ever quite sure, least of all on a Saturday or the day before a holiday. Now there's a page for
+				it.
+			</p>
+			<p>
+				It was also my first project. I wanted to learn React and needed something real to build. A page this
+				simple probably didn't need React at all, but learning it was the point: components, state, effects, and
+				later routing for the extra pages.
+			</p>
+		</div>
+
+		<Chat />
+	</section>
+
+	<section class="block split" aria-labelledby="ol-holidays">
+		<div class="intro">
+			<p class="kicker">The holidays</p>
+			<h4 id="ol-holidays">Sundays are easy. Easter isn't.</h4>
+			<p>
+				Most closed days never move, but Easter, Ascension and Pentecost land on different dates every year. So
+				instead of writing dates in by hand, the app asks <a href="https://webapi.no/" target="_blank" rel="noopener"
+					>webapi.no</a
+				>, a free Norwegian API, for the year's public holidays when the page loads.
+			</p>
+			<p>
+				Then it checks two dates against the list. If today is a holiday, beer sale is closed. If tomorrow is one,
+				it closes at 18:00 instead of 20:00.
+			</p>
+			<p class="note">
+				It is a little simplified: 20:00 and 18:00 are the national limits, and many kommuner set earlier closing
+				times of their own. So the app tells you the latest beer can be sold, not when your local shop stops. I
+				started collecting the times for every kommune so it could be exact everywhere, but realised it would take
+				far too much time for a project this simple.
+			</p>
+		</div>
+
+		<figure class="api">
+			<pre><code><span class="req"><b>GET</b> webapi.no/api/v1/holidays/2026</span>
+{'{'}
+  "data": [
+    {'{'} "date": "2026-04-02T00:00:00", "description": "Skjærtorsdag" {'}'},
+    {'{'} "date": "2026-04-03T00:00:00", "description": "Langfredag" {'}'},
+    {'{'} "date": "2026-04-05T00:00:00", "description": "Første påskedag" {'}'},
+    <span class="dim">…</span>
+  ]
+{'}'}</code></pre>
+			<pre><code><span class="dim">// Olsalg.jsx</span>
+const isHolidayToday = holidays.some((holiday) =&gt;
+  holiday.date.startsWith(todayISO)
+);
+let closingHour = (day === 6 || isHolidayTomorrow) ? 18 : 20;</code></pre>
+			<figcaption>The request, part of a real answer, and how the app uses it</figcaption>
+		</figure>
+	</section>
+
+	<section class="block split" aria-labelledby="ol-may17">
+		<div class="intro">
+			<p class="kicker">17. mai</p>
+			<h4 id="ol-may17">On the national day, it celebrates instead</h4>
+			<p>
+				17 May is a public holiday, so beer sale is closed anyway. Rather than a plain “closed”, the site changes
+				its whole look for the day: a waving flag, red, white and blue, and “Gratulerer med dagen!”.
+			</p>
+		</div>
+		<May17 />
+	</section>
+
+	<section class="block split" aria-labelledby="ol-domain">
+		<div class="intro">
+			<p class="kicker">Going live</p>
+			<h4 id="ol-domain">My first own domain</h4>
+			<p>
+				This was the first time I put something on a domain of my own. The site is hosted on Netlify, and I
+				learned how to connect a domain to it: buying the name, setting up DNS and pointing it at Netlify.
+			</p>
+			<p>
+				The name even has an å and an ø in it. Domain names can't hold those directly, so behind the scenes the
+				address is written in punycode.
+			</p>
+		</div>
+
+		<!-- The address, as people type it and as DNS stores it -->
+		<figure class="domain">
+			<p class="typed">nårstengerølsalget.no</p>
+			<p class="arrow" aria-hidden="true">↓</p>
+			<p class="puny"><code>xn--nrstengerlsalget-dob46a.no</code></p>
+			<p class="arrow" aria-hidden="true">↓</p>
+			<p class="host">Netlify</p>
+			<figcaption>The same address, as you type it and as DNS stores it, served by Netlify</figcaption>
+		</figure>
+	</section>
+
+	<section class="block split" aria-labelledby="ol-search">
+		<div class="intro">
+			<p class="kicker">Search</p>
+			<h4 id="ol-search">Made to be found</h4>
+			<p>
+				This is where I learned about SEO, and the first time I used Google Search Console: verifying the site,
+				sending in the sitemap and seeing which searches it shows up for.
+			</p>
+			<p>
+				Nobody looks for this site by name. They type the question. So the work went into being the answer:
+			</p>
+			<ul class="seo">{seo.map((item) => <li>{item}</li>)}</ul>
+		</div>
+
+		<!-- What a search for the question shows: the site's real title and description -->
+		<figure class="result">
+			<div class="result-card">
+				<p class="result-url">nårstengerølsalget.no</p>
+				<p class="result-title">Når stenger ølsalget i dag? ⏰ Sjekk stengetid nå - Hverdager kl 20:00, Lørdag kl 18:00</p>
+				<p class="result-text">
+					✅ Hverdager: senest 20:00 | 📅 Lørdag: senest 18:00 | ❌ Søndag, helligdager, 1. mai og 17. mai: STENGT. Se
+					live nedtelling til ølsalget stenger.
+				</p>
+				<ul class="result-faq">
+					<li>Når stenger ølsalget på lørdag?</li>
+					<li>Når stenger ølsalget dagen før en helligdag?</li>
+				</ul>
+			</div>
+			<figcaption>The site's own title and description, as they appear in a search result</figcaption>
+		</figure>
+	</section>
+
+	<footer class="last-call">
+		<p class="last-title">Skål.</p>
+		<p class="links">
+			{
+				project.site && (
+					<a class="button primary" href={project.site} target="_blank" rel="noopener" data-cursor="plain">
+						Visit the site <span aria-hidden="true">↗</span>
+					</a>
+				)
+			}
+			{
+				project.href && (
+					<a class="button" href={project.href} target="_blank" rel="noopener" data-cursor="plain">
+						Read the code on GitHub <span aria-hidden="true">↗</span>
+					</a>
+				)
+			}
+		</p>
+	</footer>
+</div>
+
+<style>
+	.olsalget {
+		--ink: #251c1c;
+		--cream: #fffaf0;
+		--rule: rgba(37, 28, 28, 0.2);
+
+		position: relative;
+		isolation: isolate;
+		display: flex;
+		flex-direction: column;
+		gap: clamp(56px, 9vh, 96px);
+		min-width: 0;
+		color: var(--ink);
+	}
+
+	/* ——— Hero ——— */
+
+	.hero {
+		display: flex;
+		flex-direction: column;
+		gap: 14px;
+	}
+
+	.head {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		gap: 14px;
+	}
+
+	/* The head of foam: cream from the top of the view to just under the title, with a bubbly edge like the top
+	   of a fresh pint. It follows the title block, so it fits however the title wraps. */
+	.head::before {
+		content: '';
+		position: absolute;
+		top: -88px;
+		bottom: -44px;
+		left: -16px;
+		width: 100vw; /* the pane's full width, from its left edge */
+		z-index: -1;
+		background:
+			radial-gradient(circle at 50% 0, var(--cream) 21px, transparent 22px) left bottom / 46px 24px repeat-x,
+			radial-gradient(circle at 50% 0, var(--cream) 13px, transparent 14px) 23px calc(100% - 6px) / 46px 24px repeat-x,
+			linear-gradient(var(--cream), var(--cream)) top / 100% calc(100% - 23px) no-repeat;
+		pointer-events: none;
+	}
+
+	.meta {
+		margin: 0;
+		font-size: 14px;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		opacity: 0.6;
+	}
+
+	h3 {
+		margin: 0;
+		font-size: clamp(44px, 7vw, 108px);
+		font-weight: 800;
+		line-height: 0.92;
+		letter-spacing: -0.05em;
+		outline: none;
+		text-wrap: balance;
+	}
+
+	.translation {
+		margin: 0;
+		font-size: 18px;
+		font-style: italic;
+		opacity: 0.6;
+	}
+
+	.lead {
+		max-width: 44ch;
+		margin: 44px 0 8px;
+		font-size: clamp(18px, 1.6vw, 22px);
+		line-height: 1.45;
+	}
+
+	/* ——— Buttons ——— */
+
+	.links {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 12px;
+		margin: 0;
+	}
+
+	.button {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		padding: 12px 20px;
+		border: 2px solid var(--ink);
+		border-radius: 999px;
+		color: var(--ink);
+		font-size: 16px;
+		font-weight: 600;
+		text-decoration: none;
+		white-space: nowrap;
+		transition:
+			background-color 180ms ease,
+			color 180ms ease;
+	}
+
+	.primary {
+		background: var(--ink);
+		color: #ffd27a;
+	}
+
+	.button span {
+		display: inline-block;
+		transition: transform 220ms cubic-bezier(0.165, 0.84, 0.44, 1);
+	}
+
+	@media (hover: hover) {
+		.button:not(.primary):hover {
+			background: var(--ink);
+			color: #ffd27a;
+		}
+
+		.button:hover span {
+			transform: translate(2px, -2px);
+		}
+	}
+
+	.button:focus-visible {
+		outline: 2px solid var(--ink);
+		outline-offset: 4px;
+	}
+
+	/* ——— Facts ——— */
+
+	.facts {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 0 clamp(24px, 4vw, 64px);
+		margin: 0;
+		border-top: 1px solid var(--rule);
+	}
+
+	.facts div {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		padding: 14px 0;
+		border-bottom: 1px solid var(--rule);
+	}
+
+	dt {
+		font-size: 12px;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		opacity: 0.6;
+	}
+
+	dd {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 4px 14px;
+		margin: 0;
+		font-size: 16px;
+	}
+
+	.tool {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+	}
+
+	.tool svg {
+		width: 15px;
+		height: 15px;
+		fill: currentColor;
+	}
+
+	/* ——— Sections ——— */
+
+	.block {
+		display: flex;
+		flex-direction: column;
+		gap: 32px;
+		min-width: 0;
+	}
+
+	.block.split {
+		display: grid;
+		grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+		gap: 32px clamp(32px, 5vw, 80px);
+		align-items: start;
+	}
+
+	.intro {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		max-width: 62ch;
+	}
+
+	.kicker {
+		margin: 0;
+		font-size: 13px;
+		font-weight: 600;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		opacity: 0.6;
+	}
+
+	h4 {
+		margin: 0;
+		font-size: clamp(30px, 3.6vw, 52px);
+		font-weight: 800;
+		line-height: 1;
+		letter-spacing: -0.04em;
+		text-wrap: balance;
+	}
+
+	.intro p:not(.kicker) {
+		margin: 4px 0 0;
+		font-size: 17px;
+		line-height: 1.6;
+	}
+
+	/* A side remark, set apart from the story */
+	.intro p.note {
+		padding-left: 14px;
+		border-left: 3px solid var(--ink);
+		font-size: 15px;
+		opacity: 0.8;
+	}
+
+	.seo {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		margin: 6px 0 0;
+		padding: 0;
+		list-style: none;
+		font-size: 15px;
+		line-height: 1.5;
+	}
+
+	.seo li {
+		position: relative;
+		padding-left: 26px;
+	}
+
+	/* A bubble for a bullet */
+	.seo li::before {
+		content: '';
+		position: absolute;
+		left: 2px;
+		top: 0.35em;
+		width: 12px;
+		height: 12px;
+		border-radius: 50%;
+		background: var(--cream);
+		box-shadow: inset 0 0 0 2px var(--ink);
+	}
+
+	.intro a,
+	dd a {
+		color: inherit;
+		text-decoration-thickness: 1px;
+		text-underline-offset: 3px;
+	}
+
+	@media (hover: hover) {
+		.intro a:hover,
+		dd a:hover {
+			text-decoration-thickness: 2px;
+		}
+	}
+
+	.intro a:focus-visible,
+	dd a:focus-visible {
+		outline: 2px solid var(--ink);
+		outline-offset: 3px;
+		border-radius: 2px;
+	}
+
+	/* ——— The API ——— */
+
+	.api {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		margin: 0;
+		min-width: 0;
+	}
+
+	.api pre {
+		margin: 0;
+		padding: 18px 20px;
+		border-radius: 14px;
+		background: var(--ink);
+		color: #f7ead2;
+		overflow-x: auto;
+		scrollbar-width: thin;
+	}
+
+	.api code {
+		font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+		font-size: 13px;
+		line-height: 1.7;
+	}
+
+	.req {
+		color: #ffbe32;
+	}
+
+	.dim {
+		opacity: 0.5;
+	}
+
+	/* ——— The domain ——— */
+
+	.domain {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 6px;
+		margin: 0;
+		padding: clamp(24px, 3vw, 36px) 16px;
+		border-radius: 22px;
+		background: var(--cream);
+		text-align: center;
+		box-shadow: 0 18px 40px -18px rgba(80, 40, 0, 0.5);
+	}
+
+	.domain p {
+		margin: 0;
+		max-width: 100%;
+		overflow-wrap: anywhere;
+	}
+
+	.typed {
+		font-size: clamp(24px, 2.8vw, 38px);
+		font-weight: 800;
+		letter-spacing: -0.03em;
+	}
+
+	.puny code {
+		padding: 6px 12px;
+		border-radius: 8px;
+		background: rgba(37, 28, 28, 0.08);
+		font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+		font-size: clamp(13px, 1.3vw, 17px);
+	}
+
+	.arrow {
+		font-size: 18px;
+		opacity: 0.45;
+	}
+
+	.host {
+		padding: 6px 16px;
+		border-radius: 999px;
+		background: var(--ink);
+		color: #ffd27a;
+		font-size: 15px;
+		font-weight: 600;
+	}
+
+	.domain figcaption {
+		margin-top: 14px;
+	}
+
+	/* ——— The search result ——— */
+
+	.result {
+		margin: 0;
+		min-width: 0;
+	}
+
+	.result-card {
+		padding: clamp(20px, 2.6vw, 28px);
+		border-radius: 18px;
+		background: #fff;
+		color: #202124;
+		box-shadow: 0 18px 40px -18px rgba(80, 40, 0, 0.5);
+	}
+
+	.result-card p {
+		margin: 0;
+	}
+
+	.result-url {
+		font-size: 13px;
+		opacity: 0.7;
+	}
+
+	.result-title {
+		margin-top: 6px !important;
+		font-size: clamp(17px, 1.6vw, 20px);
+		line-height: 1.3;
+		color: #1a0dab;
+	}
+
+	.result-text {
+		margin-top: 8px !important;
+		font-size: 14px;
+		line-height: 1.55;
+		opacity: 0.8;
+	}
+
+	.result-faq {
+		margin: 14px 0 0;
+		padding: 0;
+		list-style: none;
+		font-size: 14px;
+	}
+
+	.result-faq li {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: 12px;
+		padding: 10px 2px 10px 0;
+		border-top: 1px solid #e3e3e3;
+	}
+
+	/* A chevron, as on an expandable answer */
+	.result-faq li::after {
+		content: '';
+		flex: none;
+		width: 7px;
+		height: 7px;
+		margin-top: -4px;
+		border-right: 2px solid currentColor;
+		border-bottom: 2px solid currentColor;
+		transform: rotate(45deg);
+		opacity: 0.6;
+	}
+
+	figcaption {
+		margin-top: 12px;
+		font-size: 13px;
+		opacity: 0.7;
+	}
+
+	/* ——— Last call ——— */
+
+	.last-call {
+		display: flex;
+		flex-direction: column;
+		gap: 20px;
+		padding-top: 32px;
+		border-top: 1px solid var(--rule);
+	}
+
+	.last-title {
+		margin: 0;
+		font-size: clamp(48px, 7vw, 96px);
+		font-weight: 800;
+		line-height: 1;
+		letter-spacing: -0.05em;
+	}
+
+	@media (max-width: 900px) {
+		.block.split {
+			grid-template-columns: minmax(0, 1fr);
+		}
+
+		.facts {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+
+	}
+
+	@media (max-width: 560px) {
+		.facts {
+			grid-template-columns: minmax(0, 1fr);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.button,
+		.button span {
+			transition: none;
+		}
+	}
+</style>

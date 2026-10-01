@@ -1,0 +1,270 @@
+---
+// The site on an ordinary day and on 17 May, when it skips the countdown and celebrates instead.
+// A small mock of the site's front page (its own colours and wording) that flips between the two.
+---
+
+<div class="may17" data-may17>
+	<div class="switch" role="group" aria-label="Which day to show">
+		<button type="button" aria-pressed="true" data-show="normal" data-cursor="plain">En vanlig dag</button>
+		<button type="button" aria-pressed="false" data-show="may17" data-cursor="plain">17. mai</button>
+	</div>
+
+	<div class="screen" data-screen data-mode="normal" role="img" aria-label="The site's front page on an ordinary day: the question, and a countdown to closing time">
+		<div class="bar" aria-hidden="true"><span></span><span></span><span></span><b>nårstengerølsalget.no</b></div>
+
+		<div class="face normal" aria-hidden="true">
+			<span class="bubble" style="--x: 12%; --s: 10px; --d: 3.4s"></span>
+			<span class="bubble" style="--x: 28%; --s: 16px; --d: 4.6s; --delay: -1.4s"></span>
+			<span class="bubble" style="--x: 63%; --s: 8px; --d: 3s; --delay: -2.2s"></span>
+			<span class="bubble" style="--x: 81%; --s: 20px; --d: 5.2s; --delay: -0.6s"></span>
+			<span class="bubble" style="--x: 92%; --s: 12px; --d: 3.8s; --delay: -3s"></span>
+			<p class="site-title">Når stenger ølsalget?</p>
+			<div class="site-card">
+				<p class="site-status">✅ Ølsalget er åpent</p>
+				<p class="site-left">Tid igjen: 3t 12m 5s</p>
+			</div>
+		</div>
+
+		<div class="face festive" aria-hidden="true">
+			<svg class="flag" viewBox="0 0 40 30">
+				<rect x="1" y="2" width="1.6" height="28" rx="0.8" fill="#8a8a8a"></rect>
+				<g class="cloth">
+					<rect x="2.6" y="2" width="22" height="15.1" fill="#ef2b2d"></rect>
+					<rect x="8.1" y="2" width="4.1" height="15.1" fill="#fff"></rect>
+					<rect x="2.6" y="7.5" width="22" height="4.1" fill="#fff"></rect>
+					<rect x="9.2" y="2" width="1.9" height="15.1" fill="#002868"></rect>
+					<rect x="2.6" y="8.6" width="22" height="1.9" fill="#002868"></rect>
+				</g>
+			</svg>
+			<p class="site-title red">Gratulerer med dagen!</p>
+			<p class="site-closed">Ølsalget er stengt i dag</p>
+		</div>
+	</div>
+</div>
+
+<style>
+	.may17 {
+		display: flex;
+		flex-direction: column;
+		gap: 18px;
+		min-width: 0;
+	}
+
+	.switch {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+	}
+
+	.switch button {
+		padding: 9px 16px;
+		border: 2px solid rgba(37, 28, 28, 0.35);
+		border-radius: 999px;
+		background: none;
+		color: inherit;
+		font: inherit;
+		font-size: 14px;
+		font-weight: 600;
+		cursor: pointer;
+		transition:
+			background-color 160ms ease,
+			color 160ms ease,
+			border-color 160ms ease;
+	}
+
+	.switch button[aria-pressed='true'] {
+		border-color: #251c1c;
+		background: #251c1c;
+		color: #ffd27a;
+	}
+
+	@media (hover: hover) {
+		.switch button[aria-pressed='false']:hover {
+			border-color: #251c1c;
+		}
+	}
+
+	.switch button:focus-visible {
+		outline: 2px solid #251c1c;
+		outline-offset: 3px;
+	}
+
+	/* A small browser window */
+	.screen {
+		position: relative;
+		aspect-ratio: 16 / 10;
+		border-radius: 14px;
+		background: #fff;
+		color: #251c1c;
+		overflow: hidden;
+		box-shadow: 0 18px 40px -18px rgba(80, 40, 0, 0.5);
+	}
+
+	.bar {
+		position: relative;
+		z-index: 2;
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		height: 30px;
+		padding: 0 12px;
+		background: #f1ece2;
+		font-size: 11px;
+	}
+
+	.bar span {
+		width: 9px;
+		height: 9px;
+		border-radius: 50%;
+		background: rgba(37, 28, 28, 0.2);
+	}
+
+	.bar b {
+		margin-left: 10px;
+		padding: 3px 10px;
+		border-radius: 999px;
+		background: #fff;
+		font-weight: 500;
+		opacity: 0.75;
+	}
+
+	/* The two faces of the site, crossfading */
+	.face {
+		position: absolute;
+		inset: 30px 0 0;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 14px;
+		padding: 16px;
+		text-align: center;
+		transition: opacity 420ms ease;
+	}
+
+	/* The site's own background: white foam over amber */
+	.normal {
+		background: linear-gradient(180deg, #fff 15.87%, #ffbe32 23.08%);
+	}
+
+	.festive {
+		background: linear-gradient(180deg, #fff 10%, #f7e0e0 55%, #dce8f7 100%);
+		opacity: 0;
+	}
+
+	[data-mode='may17'] .normal {
+		opacity: 0;
+	}
+
+	[data-mode='may17'] .festive {
+		opacity: 1;
+	}
+
+	.site-title {
+		margin: 0;
+		font-size: clamp(20px, 2.6vw, 34px);
+		font-weight: 800;
+		letter-spacing: -0.03em;
+	}
+
+	.site-title.red {
+		color: #c8102e;
+	}
+
+	.site-card {
+		padding: 12px 22px;
+		border-radius: 12px;
+		background: rgba(255, 255, 255, 0.95);
+		box-shadow: 0 6px 16px -8px rgba(0, 0, 0, 0.3);
+	}
+
+	.site-card p,
+	.site-closed {
+		margin: 0;
+	}
+
+	.site-status {
+		font-size: clamp(14px, 1.4vw, 18px);
+		font-weight: 700;
+	}
+
+	.site-left {
+		margin-top: 4px !important;
+		font-size: 13px;
+		opacity: 0.7;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.site-closed {
+		font-size: clamp(15px, 1.5vw, 19px);
+		font-weight: 700;
+		color: #002868;
+	}
+
+	/* Bubbles rising through the beer, as on the site */
+	.bubble {
+		position: absolute;
+		bottom: -24px;
+		left: var(--x);
+		width: var(--s);
+		height: var(--s);
+		border-radius: 50%;
+		background: rgba(255, 255, 255, 0.7);
+		animation: up var(--d) linear var(--delay, 0s) infinite;
+	}
+
+	@keyframes up {
+		to {
+			transform: translateY(-240px);
+			opacity: 0;
+		}
+	}
+
+	.flag {
+		width: clamp(56px, 7vw, 84px);
+		overflow: visible;
+	}
+
+	.cloth {
+		transform-origin: 2.6px 9px;
+		animation: wave 2.4s ease-in-out infinite;
+	}
+
+	@keyframes wave {
+		50% {
+			transform: skewY(4deg) scaleX(0.96);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.bubble,
+		.cloth {
+			animation: none;
+		}
+
+		.face,
+		.switch button {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	const LABELS = {
+		normal: "The site's front page on an ordinary day: the question, and a countdown to closing time",
+		may17: "The site's front page on 17 May: a waving Norwegian flag, 'Gratulerer med dagen!' and 'Ølsalget er stengt i dag'",
+	};
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-may17]')) {
+		const screen = root.querySelector<HTMLElement>('[data-screen]')!;
+		const buttons = [...root.querySelectorAll<HTMLButtonElement>('[data-show]')];
+		for (const button of buttons) {
+			button.addEventListener('click', () => {
+				const mode = button.dataset.show as keyof typeof LABELS;
+				for (const b of buttons) b.setAttribute('aria-pressed', String(b === button));
+				screen.dataset.mode = mode;
+				screen.setAttribute('aria-label', LABELS[mode]);
+			});
+		}
+	}
+</script>
