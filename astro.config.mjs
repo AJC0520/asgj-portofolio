@@ -14,6 +14,16 @@ export default defineConfig({
 			subsets: ['latin'],
 			fallbacks: ['Helvetica Neue', 'Arial', 'sans-serif'],
 		},
+		{
+			// KartTracker's logo font, for its project title (src/components/projects/KartTracker.astro)
+			provider: fontProviders.google(),
+			name: 'Bowlby One SC',
+			cssVariable: '--font-bowlby-one-sc',
+			weights: [400],
+			styles: ['normal'],
+			subsets: ['latin'],
+			fallbacks: ['Impact', 'sans-serif'],
+		},
 	],
 	build: {
 		// One small stylesheet: inline it rather than spend a render-blocking request on it

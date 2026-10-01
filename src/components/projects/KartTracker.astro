@@ -1,0 +1,114 @@
+---
+// Project view: "KartTracker". Rendered inside the project pane in Projects.astro, which provides the colours
+// (--accent, --on-accent), the slide, the scroll lock and the "All projects" button.
+// The title uses the KartTracker app's own logo style (Bowlby One SC, gold "KART" + red "TRACKER",
+// outlined with a hard drop shadow), scaled up from its navigation bar.
+// The element marked [data-detail-title] receives focus when the view opens.
+
+interface Props {
+	href?: string;
+	project: { year: string; tags: string[]; description: string; site?: string; href?: string };
+}
+
+const { project } = Astro.props;
+---
+
+<div class="kart-tracker">
+	<p class="meta">{project.year} · {project.tags.join(' · ')}</p>
+	<h3 data-detail-title tabindex="-1" aria-label="KartTracker">
+		<span class="kart" aria-hidden="true">KART</span><span class="tracker" aria-hidden="true">TRACKER</span>
+	</h3>
+	<p class="lead">{project.description}</p>
+	<p class="placeholder">More about this project is coming soon.</p>
+	{
+		(project.site || project.href) && (
+			<p class="links">
+				{project.site && (
+					<a class="link" href={project.site} target="_blank" rel="noopener">
+						Visit the app <span aria-hidden="true">↗</span>
+					</a>
+				)}
+				{project.href && (
+					<a class="link" href={project.href} target="_blank" rel="noopener">
+						View on GitHub <span aria-hidden="true">↗</span>
+					</a>
+				)}
+			</p>
+		)
+	}
+</div>
+
+<style>
+	.kart-tracker {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 20px;
+		max-width: 64ch;
+	}
+
+	.meta {
+		margin: 0;
+		font-size: 14px;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		opacity: 0.6;
+	}
+
+	/* The app's logo style. Outline and shadows are in em, so they scale with the size like the original */
+	h3 {
+		margin: 0.1em 0 0.15em;
+		font-family: var(--font-bowlby-one-sc);
+		font-weight: 400;
+		font-size: clamp(28px, 7.5vw, 120px); /* one long word: small enough to fit a 320px-wide phone */
+		line-height: 1;
+		white-space: nowrap;
+		outline: none;
+	}
+
+	.kart {
+		color: #f4a700;
+		-webkit-text-stroke: 0.035em #a96800;
+		text-shadow:
+			0.045em 0.045em 0 #5b2d00,
+			0.07em 0.07em 0.14em rgba(0, 0, 0, 0.4);
+	}
+
+	.tracker {
+		color: #cc1100;
+		-webkit-text-stroke: 0.035em #7a0000;
+		text-shadow:
+			0.045em 0.045em 0 #3b0000,
+			0.07em 0.07em 0.14em rgba(0, 0, 0, 0.4);
+	}
+
+	.lead {
+		margin: 0;
+		font-size: 20px;
+		line-height: 1.45;
+	}
+
+	.placeholder {
+		margin: 0;
+		font-size: 16px;
+		opacity: 0.6;
+	}
+
+	.links {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 12px 28px;
+		margin: 8px 0 0;
+	}
+
+	.link {
+		color: inherit;
+		font-size: 16px;
+		text-underline-offset: 4px;
+	}
+
+	.link:focus-visible {
+		outline: 2px solid currentColor;
+		outline-offset: 4px;
+	}
+</style>

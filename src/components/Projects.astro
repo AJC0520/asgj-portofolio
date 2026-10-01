@@ -8,6 +8,7 @@
 // simple placeholder view.
 import type { AstroComponentFactory } from 'astro/runtime/server/index.js';
 import { logoFor, logos } from './projects/logos';
+import KartTracker from './projects/KartTracker.astro';
 import ThisWebsite from './projects/ThisWebsite.astro';
 
 type Project = {
@@ -15,9 +16,12 @@ type Project = {
 	name: string;
 	description: string;
 	tags: string[];
-	href?: string;
+	href?: string; // source code
+	site?: string; // live version
 	accent: string;
 	onAccent: string;
+	brand?: 'karttracker'; // the name in the list uses the project's own logo style
+	vibe?: 'map' | 'race'; // the row's hover background (see "Row vibes" in the styles)
 	component?: AstroComponentFactory;
 };
 
@@ -31,6 +35,21 @@ const projects = ([
 		accent: 'var(--color-camel)',
 		onAccent: 'var(--color-charcoal-brown)',
 		component: ThisWebsite,
+		vibe: 'map',
+	},
+	{
+		year: '2026',
+		name: 'KartTracker',
+		description:
+			'A Mario Kart tournament tracker for me and my friends: leaderboards, player stats, race history and charts.',
+		tags: ['Vue', 'TypeScript', 'Tailwind CSS', 'Pinia', 'Supabase', 'Vite'],
+		href: 'https://github.com/AJC0520/karting',
+		site: 'https://kartingmario.netlify.app/',
+		accent: 'var(--color-dark-walnut)',
+		onAccent: '#f4efe1',
+		component: KartTracker,
+		brand: 'karttracker',
+		vibe: 'race',
 	},
 	{
 		year: '2025',
@@ -80,10 +99,23 @@ const projects = ([
 								type="button"
 								data-open={project.slug}
 								data-cursor="plain"
+								data-vibe={project.vibe}
 								style={`--accent: ${project.accent}; --on-accent: ${project.onAccent}`}
 							>
 								<span class="year">{project.year}</span>
-								<span class="name">{project.name}</span>
+								{project.brand === 'karttracker' ? (
+									<span class="name brand-karttracker">
+										<span class="visually-hidden">{project.name}</span>
+										<span class="kart" aria-hidden="true">
+											KART
+										</span>
+										<span class="tracker" aria-hidden="true">
+											TRACKER
+										</span>
+									</span>
+								) : (
+									<span class="name">{project.name}</span>
+								)}
 								<span class="description">{project.description}</span>
 								<span class="tags">
 									{project.tags.map((tag) => {
@@ -126,7 +158,7 @@ const projects = ([
 							<span aria-hidden="true">←</span> All projects
 						</button>
 						{project.component ? (
-							<project.component href={project.href} />
+							<project.component href={project.href} project={project} />
 						) : (
 							<div class="generic">
 								<p class="meta">
@@ -137,10 +169,19 @@ const projects = ([
 								</h3>
 								<p class="lead">{project.description}</p>
 								<p class="placeholder">More about this project is coming soon.</p>
-								{project.href && (
-									<a class="link" href={project.href} target="_blank" rel="noopener">
-										View on GitHub <span aria-hidden="true">↗</span>
-									</a>
+								{(project.site || project.href) && (
+									<p class="links">
+										{project.site && (
+											<a class="link" href={project.site} target="_blank" rel="noopener">
+												Visit the app <span aria-hidden="true">↗</span>
+											</a>
+										)}
+										{project.href && (
+											<a class="link" href={project.href} target="_blank" rel="noopener">
+												View on GitHub <span aria-hidden="true">↗</span>
+											</a>
+										)}
+									</p>
 								)}
 							</div>
 						)}
@@ -220,53 +261,86 @@ const projects = ([
 
 	/* ——— List ——— */
 
-	/* One set of columns for the whole list (rows use subgrid), so they line up even though the tags
-	   column sizes to the widest tag list: every technology shows on one line */
+	/* One set of columns for the whole list (rows use subgrid), so they line up. The tags column is capped:
+	   a long list of technologies wraps onto a second line instead of squeezing the descriptions */
+	/* One set of columns for the whole list (rows use subgrid), so they line up. The tags column is capped:
+	   a long list of technologies wraps onto a second line instead of squeezing the descriptions */
 	.projects {
 		display: grid;
-		grid-template-columns: 64px minmax(0, 1.2fr) minmax(0, 1fr) max-content 32px;
+		grid-template-columns: 64px minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 380px) 32px;
 		column-gap: 24px;
+		row-gap: 6px; /* the section's colour between the bands */
 		margin: 0;
 		padding: 0;
 		list-style: none;
-		border-top: 1px solid rgba(244, 239, 225, 0.2);
 	}
 
 	.projects li {
 		display: grid;
 		grid-column: 1 / -1;
 		grid-template-columns: subgrid;
-		border-bottom: 1px solid rgba(244, 239, 225, 0.2);
 	}
 
+	/* Every row is a band in its project's colour, with its own texture (data-vibe) always showing */
 	.row {
 		position: relative;
 		isolation: isolate;
+		overflow: hidden;
 		display: grid;
 		grid-column: 1 / -1;
 		grid-template-columns: subgrid;
-		align-items: baseline;
+		align-items: center; /* year, title, description and tags all centred in the row */
 		width: 100%;
 		padding: 22px 12px;
 		border: 0;
-		background: none;
-		color: inherit;
+		border-radius: 4px;
+		background: var(--accent);
+		color: var(--on-accent);
 		font: inherit;
 		text-align: left;
 		cursor: pointer;
-		transition: color 220ms var(--ease-out-quart);
 	}
 
-	/* The project's colour wipes in behind a hovered row (transform only: smooth) */
+	/* Hover light: a soft wash over the band */
 	.row::before {
 		content: '';
 		position: absolute;
 		inset: 0;
 		z-index: -1;
-		background: var(--accent);
-		transform: scaleX(0);
-		transform-origin: left center;
-		transition: transform 320ms var(--ease-out-quart);
+		background: linear-gradient(90deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02));
+		opacity: 0;
+		transition: opacity 220ms ease;
+	}
+
+	/* ——— Row vibes: a texture on the band. On hover it comes alive (transform only: smooth) ——— */
+
+	.row[data-vibe]::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		z-index: -2;
+		pointer-events: none;
+		transition: transform 900ms var(--ease-out-quart);
+	}
+
+	/* This website: the hero's street map of Tromsø, faint, in the row's text colour. Hover: it zooms in */
+	.row[data-vibe='map']::after {
+		background: var(--on-accent);
+		opacity: 0.2;
+		mask: url('/tromso-map.svg') center 46% / 100% auto no-repeat;
+	}
+
+	/* KartTracker: a chequered flag fading in from the right, and the logo's gold-and-red stripe below.
+	   Hover: the flag slides along like a moving track (the layer is one tile wider than the row for that) */
+	.row[data-vibe='race']::after {
+		right: -32px;
+		background:
+			linear-gradient(#f4a700, #f4a700) left bottom 3px / 100% 3px no-repeat,
+			linear-gradient(#cc1100, #cc1100) left bottom / 100% 3px no-repeat,
+			repeating-conic-gradient(rgba(244, 239, 225, 0.18) 0 25%, transparent 0 50%) right top / 16px 16px;
+		mask:
+			linear-gradient(#000, #000) left bottom / 100% 6px no-repeat,
+			linear-gradient(to left, #000, transparent 45%);
 	}
 
 	.year,
@@ -285,6 +359,42 @@ const projects = ([
 		transition: transform 320ms var(--ease-out-quart);
 	}
 
+	/* KartTracker's own logo style (same as its project view, see projects/KartTracker.astro), a little smaller
+	   than the other names since the font is much wider. Outline and shadows scale with the size. */
+	.brand-karttracker {
+		display: flex;
+		font-family: var(--font-bowlby-one-sc);
+		font-weight: 400;
+		font-size: clamp(22px, 2.6vw, 38px);
+		letter-spacing: 0;
+		white-space: nowrap;
+	}
+
+	.brand-karttracker .kart {
+		color: #f4a700;
+		-webkit-text-stroke: 0.035em #a96800;
+		text-shadow:
+			0.045em 0.045em 0 #5b2d00,
+			0.07em 0.07em 0.14em rgba(0, 0, 0, 0.4);
+	}
+
+	.brand-karttracker .tracker {
+		color: #cc1100;
+		-webkit-text-stroke: 0.035em #7a0000;
+		text-shadow:
+			0.045em 0.045em 0 #3b0000,
+			0.07em 0.07em 0.14em rgba(0, 0, 0, 0.4);
+	}
+
+	.visually-hidden {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+
 	.description {
 		font-size: 16px;
 		line-height: 1.45;
@@ -294,7 +404,7 @@ const projects = ([
 	/* Tags with their tool's logo where there is one (see projects/logos.ts) */
 	.tags {
 		display: flex;
-		flex-wrap: nowrap;
+		flex-wrap: wrap;
 		justify-content: flex-end;
 		gap: 4px 14px;
 	}
@@ -322,12 +432,16 @@ const projects = ([
 	}
 
 	@media (hover: hover) {
-		.row:hover {
-			color: var(--on-accent);
+		.row:hover::before {
+			opacity: 1;
 		}
 
-		.row:hover::before {
-			transform: scaleX(1);
+		.row[data-vibe='map']:hover::after {
+			transform: scale(1.08);
+		}
+
+		.row[data-vibe='race']:hover::after {
+			transform: translateX(-32px);
 		}
 
 		.row:hover .name {
@@ -341,8 +455,8 @@ const projects = ([
 	}
 
 	.row:focus-visible {
-		outline: 2px solid var(--accent);
-		outline-offset: 2px;
+		outline: 2px solid var(--on-accent);
+		outline-offset: -6px;
 	}
 
 	/* ——— Detail ——— */
@@ -434,6 +548,13 @@ const projects = ([
 		margin: 0;
 		font-size: 16px;
 		opacity: 0.6;
+	}
+
+	.links {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 12px 28px;
+		margin: 8px 0 0;
 	}
 
 	.link {
