@@ -1,0 +1,327 @@
+---
+// The app's track picker (MapWheelSpinner): a wheel of all 30 courses that decides where the next race is held.
+// The track names are the app's own list (src/utils/defaults.ts).
+const tracks = [
+	'Acorn Heights',
+	'Airship Fortress',
+	'Boo Cinema',
+	"Bowser's Castle",
+	'Cheep Cheep Falls',
+	'Choco Mountain',
+	'Crown City',
+	'Dandelion Depths',
+	'Desert Hills',
+	'Dino Dino Jungle',
+	'DK Pass',
+	'DK Spaceport',
+	'Dry Bones Burnout',
+	'Faraway Oasis',
+	'Great ? Block Ruins',
+	'Koopa Troopa Beach',
+	'Mario Bros. Circuit',
+	'Mario Circuit',
+	'Moo Moo Meadows',
+	'Peach Beach',
+	'Peach Stadium',
+	'Rainbow Road',
+	'Salty Salty Speedway',
+	'Shy Guy Bazaar',
+	'Sky-High Sundae',
+	'Starview Peak',
+	"Toad's Factory",
+	'Wario Stadium',
+	"Wario's Galleon",
+	'Whistlestop Summit',
+];
+
+const CX = 100;
+const CY = 100;
+const R = 94;
+const step = 360 / tracks.length;
+const point = (angle: number) => {
+	const rad = ((angle - 90) * Math.PI) / 180;
+	return `${(CX + R * Math.cos(rad)).toFixed(2)} ${(CY + R * Math.sin(rad)).toFixed(2)}`;
+};
+// Segment i covers [i * step, (i + 1) * step), measured clockwise from the top
+const segments = tracks.map((_, i) => `M${CX} ${CY}L${point(i * step)}A${R} ${R} 0 0 1 ${point((i + 1) * step)}Z`);
+---
+
+<div class="wheel" data-wheel data-tracks={JSON.stringify(tracks)}>
+	<div class="dial">
+		<svg viewBox="0 0 200 200" aria-hidden="true">
+			<g class="disc" data-disc>
+				{segments.map((d, i) => <path d={d} class={`s s${i % 3}`} />)}
+			</g>
+			<circle class="hub" cx={CX} cy={CY} r="10" />
+		</svg>
+		<span class="pointer" aria-hidden="true"></span>
+	</div>
+
+	<div class="side">
+		<p class="label">Next track</p>
+		<output class="pick" data-pick aria-live="polite">Spin to decide</output>
+		<button class="spin" type="button" data-spin data-cursor="plain">Spin the wheel</button>
+		<p class="label history-label" data-history-label hidden>Earlier spins</p>
+		<ul class="history" data-history></ul>
+	</div>
+</div>
+
+<style>
+	.wheel {
+		display: grid;
+		grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+		gap: 24px clamp(24px, 4vw, 64px);
+		align-items: center;
+	}
+
+	.dial {
+		position: relative;
+		width: 100%;
+		max-width: 340px;
+		aspect-ratio: 1;
+	}
+
+	svg {
+		display: block;
+		width: 100%;
+		height: 100%;
+		overflow: visible;
+	}
+
+	.disc {
+		transform-box: view-box;
+		transform-origin: 50% 50%;
+		will-change: transform;
+	}
+
+	.s {
+		stroke: var(--kt-walnut);
+		stroke-width: 0.6;
+	}
+
+	.s0 {
+		fill: var(--kt-gold);
+	}
+
+	.s1 {
+		fill: var(--kt-red);
+	}
+
+	.s2 {
+		fill: var(--kt-cream);
+	}
+
+	.hub {
+		fill: var(--kt-walnut);
+		stroke: var(--kt-cream);
+		stroke-width: 2;
+	}
+
+	/* A marker at the top, pointing into the disc */
+	.pointer {
+		position: absolute;
+		top: -10px;
+		left: 50%;
+		width: 0;
+		height: 0;
+		border-left: 10px solid transparent;
+		border-right: 10px solid transparent;
+		border-top: 20px solid currentColor;
+		transform: translateX(-50%);
+		filter: drop-shadow(0 2px 0 var(--kt-walnut));
+	}
+
+	.side {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 12px;
+	}
+
+	.label {
+		margin: 0;
+		font-size: 12px;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		opacity: 0.6;
+	}
+
+	.pick {
+		min-height: 1.1em;
+		font-size: clamp(28px, 3.4vw, 48px);
+		line-height: 1.05;
+		letter-spacing: -0.035em;
+	}
+
+	/* The name settles with a small lift once the wheel stops */
+	.pick[data-done] {
+		animation: land 380ms var(--ease-out) both;
+		color: var(--kt-gold);
+	}
+
+	@keyframes land {
+		from {
+			opacity: 0.4;
+			transform: translateY(6px);
+		}
+	}
+
+	.spin {
+		position: relative;
+		margin-top: 6px;
+		padding: 12px 22px;
+		border: 2px solid var(--kt-gold-edge);
+		border-radius: 12px;
+		background: var(--kt-gold);
+		color: var(--kt-shade);
+		font: inherit;
+		font-size: 16px;
+		font-weight: 600;
+		white-space: nowrap;
+		cursor: pointer;
+		box-shadow: 0 4px 0 var(--kt-shade);
+		transition:
+			transform 160ms var(--ease-out),
+			box-shadow 160ms var(--ease-out);
+	}
+
+	/* The button rises on hover and sinks when pressed. This invisible margin keeps the pointer on it while it moves,
+	   so the hover doesn't flicker at the edges */
+	.spin::after {
+		content: '';
+		position: absolute;
+		inset: -6px -2px -10px;
+	}
+
+	.spin:not(:disabled):active {
+		transform: translateY(3px);
+		box-shadow: 0 1px 0 var(--kt-shade);
+		transition-duration: 60ms;
+	}
+
+	.spin:disabled {
+		opacity: 0.5;
+		cursor: default;
+	}
+
+	@media (hover: hover) {
+		.spin:not(:disabled):hover {
+			transform: translateY(-2px);
+			box-shadow: 0 6px 0 var(--kt-shade);
+		}
+	}
+
+	.spin:focus-visible {
+		outline: 2px solid currentColor;
+		outline-offset: 4px;
+	}
+
+	.history-label {
+		margin-top: 12px;
+	}
+
+	.history {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.history li {
+		padding: 4px 10px;
+		border: 1px solid var(--rule);
+		border-radius: 999px;
+		font-size: 13px;
+	}
+
+	@media (max-width: 760px) {
+		.wheel {
+			grid-template-columns: minmax(0, 1fr);
+		}
+
+		.dial {
+			max-width: 300px;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.pick[data-done] {
+			animation: none;
+		}
+
+		.spin {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	const SPIN_MS = 4200;
+	const easeOutQuart = (t: number) => 1 - (1 - t) ** 4;
+	const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-wheel]')) {
+		const tracks: string[] = JSON.parse(root.dataset.tracks!);
+		const step = 360 / tracks.length;
+		const disc = root.querySelector<SVGGElement>('[data-disc]')!;
+		const pick = root.querySelector<HTMLElement>('[data-pick]')!;
+		const spin = root.querySelector<HTMLButtonElement>('[data-spin]')!;
+		const history = root.querySelector<HTMLElement>('[data-history]')!;
+		const historyLabel = root.querySelector<HTMLElement>('[data-history-label]')!;
+
+		let rotation = 0;
+		let frame = 0;
+		let previous: string | null = null;
+
+		// Which track is under the pointer at the top for a given rotation (degrees, clockwise)
+		const under = (deg: number) => tracks[Math.floor((((360 - (deg % 360)) % 360) + 1e-6) / step) % tracks.length];
+		const draw = (deg: number) => (disc.style.transform = `rotate(${deg}deg)`);
+
+		function finish() {
+			spin.disabled = false;
+			const result = under(rotation);
+			pick.textContent = result;
+			pick.removeAttribute('data-done');
+			void pick.offsetWidth; // restart the landing animation
+			pick.setAttribute('data-done', '');
+			if (previous) {
+				const li = document.createElement('li');
+				li.textContent = previous;
+				history.prepend(li);
+				while (history.children.length > 4) history.lastElementChild!.remove();
+				historyLabel.hidden = false;
+			}
+			previous = result;
+		}
+
+		spin.addEventListener('click', () => {
+			cancelAnimationFrame(frame);
+			spin.disabled = true;
+			pick.removeAttribute('data-done');
+
+			const from = rotation;
+			const to = from + 360 * 5 + Math.random() * 360;
+
+			if (reduceMotion) {
+				rotation = to;
+				draw(rotation);
+				finish();
+				return;
+			}
+
+			const start = performance.now();
+			const tick = (now: number) => {
+				const t = Math.min(1, (now - start) / SPIN_MS);
+				rotation = from + (to - from) * easeOutQuart(t);
+				draw(rotation);
+				// The name under the pointer changes as the wheel passes each course
+				pick.textContent = under(rotation);
+				if (t < 1) frame = requestAnimationFrame(tick);
+				else finish();
+			};
+			frame = requestAnimationFrame(tick);
+		});
+	}
+</script>

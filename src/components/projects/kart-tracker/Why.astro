@@ -1,0 +1,99 @@
+---
+// "Why I built it": the question a mode answers, set large in a speech bubble, next to the story behind it (the slot)
+import Section from './Section.astro';
+
+interface Props {
+	id: string;
+	question: string;
+}
+
+const { id, question } = Astro.props;
+---
+
+<Section id={id} title="Why I built it">
+	<div class="why">
+		<p class="statement">{question}</p>
+		<p class="body"><slot /></p>
+	</div>
+</Section>
+
+<style>
+	.why {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+		gap: 28px clamp(32px, 5vw, 80px);
+		align-items: center;
+	}
+
+	/* The question in a cream speech bubble, its tail pointing at the story */
+	.statement {
+		position: relative;
+		margin: 0;
+		padding: clamp(20px, 2.4vw, 32px);
+		border-radius: 18px;
+		background: var(--kt-cream);
+		color: var(--kt-ink);
+		font-size: clamp(26px, 3vw, 44px);
+		font-weight: 600;
+		line-height: 1.05;
+		letter-spacing: -0.03em;
+		box-shadow: 0 6px 0 var(--kt-shade);
+	}
+
+	.statement::after {
+		content: '';
+		position: absolute;
+		right: -14px;
+		top: 50%;
+		border-left: 16px solid var(--kt-cream);
+		border-top: 12px solid transparent;
+		border-bottom: 12px solid transparent;
+		transform: translateY(-50%);
+	}
+
+	.body {
+		margin: 0;
+		max-width: 52ch;
+		font-size: 17px;
+		line-height: 1.6;
+		opacity: 0.88;
+	}
+
+	/* Links in the story (slotted, so :global) */
+	.body :global(a) {
+		color: var(--kt-gold);
+		text-decoration-thickness: 1px;
+		text-underline-offset: 3px;
+	}
+
+	@media (hover: hover) {
+		.body :global(a:hover) {
+			text-decoration-thickness: 2px;
+		}
+	}
+
+	.body :global(a:focus-visible) {
+		outline: 2px solid currentColor;
+		outline-offset: 3px;
+		border-radius: 2px;
+	}
+
+	@media (max-width: 900px) {
+		.why {
+			grid-template-columns: minmax(0, 1fr);
+		}
+
+		/* Stacked: the tail points down at the story */
+		.statement::after {
+			right: auto;
+			left: 36px;
+			top: auto;
+			bottom: -14px;
+			border-left: 12px solid transparent;
+			border-right: 12px solid transparent;
+			border-top: 16px solid var(--kt-cream);
+			border-bottom: 0;
+			transform: none;
+		}
+	}
+</style>

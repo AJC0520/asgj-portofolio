@@ -1,0 +1,132 @@
+---
+// The Beeriokart mode: one party night, played as a double-elimination bracket
+import finishPodium from '../../../assets/karttracker/finish-podium.png';
+import fullStandings from '../../../assets/karttracker/full-standings.png';
+import live from '../../../assets/karttracker/live.png';
+import raceEditor from '../../../assets/karttracker/race-editor.png';
+import bracket from '../../../assets/karttracker/bracket.png';
+import setup from '../../../assets/karttracker/beeriokart-setup.png';
+import AppTour from './AppTour.astro';
+import Placeholder from './Placeholder.astro';
+import Section from './Section.astro';
+import Split from './Split.astro';
+import UnderTheHood from './UnderTheHood.astro';
+import WheelDemo from './WheelDemo.astro';
+import Why from './Why.astro';
+
+// The app's screens in this mode (from its views: BeerikartView, OnlineView)
+const screens = [
+	{
+		id: 'setup',
+		name: 'Set up the night',
+		title: 'Names in, bracket out',
+		text: "Name the night, set when it is played and type in up to 16 drivers, each with their own colour for the rest of the evening. Start with at least 12 and the app builds the first round. Set the date ahead of time and the public page counts down to it, or backdate it to log a night that already happened.",
+		points: ['Up to 16 drivers, a colour each', 'At least 12 to start; jokers fill empty seats', 'Date ahead of time for a countdown, or backdated'],
+		shot: 'The setup form with a list of driver names',
+		ratio: '16 / 10',
+		images: [{ src: setup, alt: 'The create tournament form: a name, the date played, sixteen numbered driver names and a Start Tournament button' }],
+	},
+	{
+		id: 'bracket',
+		name: 'The bracket',
+		title: 'The whole night on one screen',
+		text: 'Every round as a card of races, in winner and loser rows. Hover a driver and a dashed line traces their route through the night, while a card adds up their points round by round. Finished races are marked Done, and the race being played is marked Now.',
+		points: ['A colour per driver, all night', "A driver's path traced on hover", 'Points added up round by round', 'Done and Now badges on every race'],
+		shot: "The bracket with one driver's path highlighted",
+		ratio: '16 / 10',
+		images: [{ src: bracket, alt: "The bracket: winner and loser rounds as race cards, one driver's route traced with a dashed line and a card listing their points per round" }],
+	},
+	{
+		id: 'editor',
+		name: 'Results and swaps',
+		title: 'Enter a race, fix a matchup',
+		text: 'Open a race and drag the drivers into finishing order, or nudge them with the arrows. A badge on each row shows where that finish sends them, and the next round builds itself when you save. A swap button on every driver trades them with someone in another race, and any joker that was mimicking them switches to a new driver automatically.',
+		points: ['Drag or use arrows to set the order', 'Badges: advances, loser bracket', 'Swap a driver with another race', 'Jokers reassign themselves'],
+		shot: 'The race editor panel next to the bracket',
+		ratio: '16 / 10',
+		images: [{ src: raceEditor, alt: 'The race editor for Winner bracket 1: four drivers in finishing order with drag handles, arrows, advance and loser bracket badges, a swap button each and a Save result button' }],
+	},
+	{
+		id: 'live',
+		name: 'The live page',
+		title: 'Follow along from the couch',
+		text: "Friends can follow the nights on a public page, no login needed. Every night is listed with its date and a status: a countdown while it is coming up, live while it is on, finished when it is done. Open one to watch the bracket, and once it is over the podium, the standings and every driver's score breakdown.",
+		points: ['No login, updates on its own', 'Countdown to the next night', 'Podium, standings and score breakdowns'],
+		shot: 'The public page with the podium and standings',
+		ratio: '16 / 10',
+		images: [{ src: live, alt: 'The public results page: a list of Beeriokart nights with their dates, a countdown on the upcoming one and Finished on the earlier two' }],
+	},
+];
+---
+
+<div class="mode">
+	<Why id="kt-why-beeriokart" question="How do you crown one winner in a single night?">
+		Beeriokart is Mario Kart played as a drinking game. Online, the informatics student association at NTNU, holds
+		Beeriokart nights, hosted by Trikom, the committee I'm part of. A league is made for months of racing; a night
+		like that needs something else: everyone races, one bad race is not the end, and the evening builds to a real
+		final. So the app got a second mode for it, a bracket for the whole night with the drinking-game rules built in,
+		and a <a href="https://kartingmario.netlify.app/online" target="_blank" rel="noopener">public page</a> so everyone
+		there can follow along.
+	</Why>
+
+	<Section id="kt-tour-beeriokart" title="A tour of Beeriokart">
+		<AppTour id="beeriokart" screens={screens} />
+	</Section>
+
+	<Section id="kt-bracket" title="How the bracket works">
+		<Split heading="Double elimination, four drivers at a time">
+			<p>
+				Races have four drivers, and a bad race is not the end: there is a loser bracket, and a qual finale as a
+				last chance at the grand finale. The app builds each round from the last one's results.
+			</p>
+			<p>
+				Not enough players to fill a race? Jokers take the empty seats. Each one mimics a real driver and has to
+				stop whenever that driver stops to drink. A swap function fixes the case where a joker lands in an
+				important final.
+			</p>
+			<p>
+				Behind the scenes, every race hands out hidden points, weighted more heavily in later rounds. They only
+				break ties between drivers knocked out at the same stage, so the final order always follows what the
+				bracket decided.
+			</p>
+			<div slot="media" class="results">
+				<Placeholder
+					label="The finish podium: Ola first, Thor second, Henrik third and Mathea fourth, under a Finish! banner"
+					image={finishPodium}
+				/>
+				<Placeholder
+					label="Full standings: every driver ranked with their points, the top three in medal colours"
+					image={fullStandings}
+					caption="Ranked by the bracket first, points second"
+				/>
+			</div>
+		</Split>
+	</Section>
+
+	<Section id="kt-wheel" title="Picking the track">
+		<Split heading="Arguments end at the wheel" center>
+			<p>
+				Thirty courses, one wheel. The track picker spins through the whole list and lands on the next race, so
+				nobody gets to choose their favourite.
+			</p>
+			<WheelDemo slot="media" />
+		</Split>
+	</Section>
+
+	<UnderTheHood id="kt-hood-beeriokart" publicPage />
+</div>
+
+<style>
+	.results {
+		display: flex;
+		flex-direction: column;
+		gap: 20px;
+		min-width: 0;
+	}
+
+	.mode {
+		display: flex;
+		flex-direction: column;
+		gap: clamp(40px, 7vh, 72px);
+	}
+</style>

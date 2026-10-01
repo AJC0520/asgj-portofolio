@@ -1,0 +1,111 @@
+---
+// The project's links as game buttons: the live app (gold, the main action) and the code.
+// Shown under the lead and again at the finish.
+interface Props {
+	site?: string;
+	href?: string;
+	codeLabel?: string;
+}
+
+const { site, href, codeLabel = 'View on GitHub' } = Astro.props;
+---
+
+{
+	(site || href) && (
+		<p class="links">
+			{site && (
+				<a class="button primary" href={site} target="_blank" rel="noopener" data-cursor="plain">
+					Visit the app <span aria-hidden="true">↗</span>
+				</a>
+			)}
+			{href && (
+				<a class="button" href={href} target="_blank" rel="noopener" data-cursor="plain">
+					{codeLabel} <span aria-hidden="true">↗</span>
+				</a>
+			)}
+		</p>
+	)
+}
+
+<style>
+	.links {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 14px 16px;
+		margin: 0;
+	}
+
+	/* A raised button on a hard shadow; pressing pushes it down onto the shadow */
+	.button {
+		position: relative;
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		padding: 12px 20px;
+		border: 2px solid color-mix(in srgb, currentColor 45%, transparent);
+		border-radius: 12px;
+		background: var(--kt-well);
+		color: inherit;
+		font-size: 16px;
+		font-weight: 600;
+		text-decoration: none;
+		white-space: nowrap;
+		box-shadow: 0 4px 0 var(--kt-shade);
+		transition:
+			transform 160ms var(--ease-out),
+			box-shadow 160ms var(--ease-out),
+			border-color 160ms var(--ease-out);
+	}
+
+	/* The button rises on hover and sinks when pressed. This invisible margin keeps the pointer on it while it moves,
+	   so the hover doesn't flicker at the edges */
+	.button::after {
+		content: '';
+		position: absolute;
+		inset: -6px -2px -10px;
+	}
+
+	.primary {
+		border-color: var(--kt-gold-edge);
+		background: var(--kt-gold);
+		color: var(--kt-shade);
+	}
+
+	.button span {
+		display: inline-block;
+		transition: transform 220ms var(--ease-out);
+	}
+
+	@media (hover: hover) {
+		.button:hover {
+			transform: translateY(-2px);
+			box-shadow: 0 6px 0 var(--kt-shade);
+		}
+
+		.button:not(.primary):hover {
+			border-color: currentColor;
+		}
+
+		.button:hover span {
+			transform: translate(2px, -2px);
+		}
+	}
+
+	.button:active {
+		transform: translateY(3px);
+		box-shadow: 0 1px 0 var(--kt-shade);
+		transition-duration: 60ms;
+	}
+
+	.button:focus-visible {
+		outline: 2px solid currentColor;
+		outline-offset: 4px;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.button,
+		.button span {
+			transition: none;
+		}
+	}
+</style>

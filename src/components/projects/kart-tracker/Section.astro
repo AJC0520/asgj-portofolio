@@ -1,0 +1,55 @@
+---
+// One section of the page, as a lap of the race: a dashed lane line, the heading, then the content. It fades up as it scrolls into view once the script in KartTracker.astro has armed the page.
+interface Props {
+	id: string; // the heading's id, which labels the section
+	title: string;
+}
+
+const { id, title } = Astro.props;
+---
+
+<section class="block" data-reveal aria-labelledby={id}>
+	<header>
+		<h4 id={id}>{title}</h4>
+	</header>
+	<slot />
+</section>
+
+<style>
+	.block {
+		display: flex;
+		flex-direction: column;
+		gap: 28px;
+		padding-top: 32px;
+		/* Lane markings */
+		background: repeating-linear-gradient(90deg, var(--rule) 0 28px, transparent 28px 44px) top / 100% 3px no-repeat;
+		min-width: 0;
+	}
+
+	header {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 10px 16px;
+	}
+
+	h4 {
+		margin: 0;
+		font-family: var(--font-bowlby-one-sc);
+		font-weight: 400;
+		font-size: clamp(24px, 2.6vw, 36px);
+		line-height: 1.05;
+	}
+
+	/* Arriving: hidden until it scrolls into view (only once the script has armed it) */
+	:global([data-reveal-armed]) .block:not([data-in]) {
+		opacity: 0;
+		transform: translateY(18px);
+	}
+
+	:global([data-reveal-armed]) .block {
+		transition:
+			opacity 520ms var(--ease-out),
+			transform 520ms var(--ease-out);
+	}
+</style>

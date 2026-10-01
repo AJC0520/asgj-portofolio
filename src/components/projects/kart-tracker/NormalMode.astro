@@ -1,0 +1,81 @@
+---
+// The normal tournament mode: a league that runs for weeks or months
+import podium from '../../../assets/karttracker/leaderboard-podium.png';
+import chart from '../../../assets/karttracker/leaderboard-chart.png';
+import addRace from '../../../assets/karttracker/add-race.png';
+import stats from '../../../assets/karttracker/stats.png';
+import map from '../../../assets/karttracker/map.png';
+import AppTour from './AppTour.astro';
+import Section from './Section.astro';
+import UnderTheHood from './UnderTheHood.astro';
+import Why from './Why.astro';
+
+// The app's screens in this mode (from its views: LeaderboardView, AddRaceView, PlayersView, MapView)
+const screens = [
+	{
+		id: 'leaderboard',
+		name: 'Leaderboard',
+		title: 'Who is actually winning',
+		text: 'Standings that update after every race, with the gap to the leader and how each player did last time. A chart under it follows the top four through the whole tournament and labels every change of lead.',
+		points: ['Point gaps and last-race result', 'Average points per race', 'Lead-change chart with overtake labels'],
+		shot: 'Leaderboard with the lead-progression chart underneath',
+		ratio: '16 / 10',
+		images: [
+			{ src: podium, alt: 'The leaderboard podium: four players with total points, average per race and the gap to the leader' },
+			{ src: chart, alt: 'The tournament leadership chart: total points after each race, with a dot at every change of lead' },
+		],
+	},
+	{
+		id: 'race',
+		name: 'Add a race',
+		title: 'Entered in seconds, between races',
+		text: "Pick the track, set the time and type each player's real finishing position. Races against bots work too: a player can finish 7th and still be ranked correctly. Ties, DNFs and disqualifications are first-class, so the points stay right even when a race goes wrong.",
+		points: ['Track, date and optional notes', "Real race positions, 1 to 24, with bots counted", 'Leave a player empty if they did not race', 'Blue shell marker for the bonus rule'],
+		shot: 'The race entry form with a ranked list of four players',
+		ratio: '16 / 10',
+		images: [{ src: addRace, alt: 'The add race form: track name, date and time, notes, a finishing position for each player and a blue shell marker' }],
+	},
+	{
+		id: 'stats',
+		name: 'Player stats',
+		title: 'The numbers behind the trash talk',
+		text: 'A wall of achievements for the whole tournament: who wins most, who is steadiest, who always finishes second. Every card names a player and backs it with the numbers, and hovering one explains how it is worked out.',
+		points: ['Most played track, top win rate, longest streak', 'Most consistent, podium king, average points', 'First loser and the blue shell warrior'],
+		shot: 'The tournament achievements',
+		ratio: '16 / 10',
+		images: [{ src: stats, alt: 'Eight achievement cards: most played track, top win rate, longest streak, most consistent, podium king, average points per race, first loser and blue shell warrior' }],
+	},
+	{
+		id: 'map',
+		name: 'Track map',
+		title: 'The world, as a stats page',
+		text: 'The full course map with a hotspot on every track. Hover one and a card shows how the group has done there: how often it has been played, who wins and scores most, how close the races are and when it was last raced.',
+		points: ['Times played and last played', 'Most wins and most points, with the player', 'Average spread between first and last'],
+		shot: 'The track map with a tooltip open on one course',
+		ratio: '16 / 10',
+		images: [{ src: map, alt: 'The course map with a tooltip on Dandelion Depths: times played, most wins, most points, average spread and last played' }],
+	},
+];
+---
+
+<div class="mode">
+	<Why id="kt-why-normal" question="Who is actually the best, over weeks and months?">
+		Racing with friends, there was no good way to keep track of it. One night's winner is easy to name. The best
+		over a whole season, or who has been improving, is not. So I built the thing we were missing: tournaments that
+		keep their history, count points the way we want, and follow us across devices.
+	</Why>
+
+	<Section id="kt-tour-normal" title="A tour of the app">
+		<AppTour id="normal" screens={screens} />
+	</Section>
+
+	<UnderTheHood id="kt-hood-normal" />
+</div>
+
+<style>
+	.mode {
+		display: flex;
+		flex-direction: column;
+		gap: clamp(40px, 7vh, 72px);
+	}
+</style>

@@ -1,0 +1,97 @@
+---
+// A screenshot of the app in a game-screen frame. Pass `image` (imported from src/assets) to show the real picture;
+// without it, a hatched stand-in says what picture belongs here.
+import type { ImageMetadata } from 'astro';
+import { Image } from 'astro:assets';
+
+interface Props {
+	label: string; // what the screenshot shows: the image's alt text, or the stand-in's label
+	image?: ImageMetadata;
+	caption?: string;
+	ratio?: string; // CSS aspect-ratio, e.g. "16 / 10". With an image, defaults to the image's own
+}
+
+const { label, image, caption } = Astro.props;
+const ratio = Astro.props.ratio ?? (image ? `${image.width} / ${image.height}` : '16 / 10');
+---
+
+<figure class="placeholder">
+	{
+		image ? (
+			<div class="frame shot" style={`aspect-ratio: ${ratio}`}>
+				<Image src={image} alt={label} widths={[640, 1000, 1440]} sizes="(max-width: 900px) 92vw, 52vw" />
+			</div>
+		) : (
+			<div class="frame" style={`aspect-ratio: ${ratio}`} role="img" aria-label={`Screenshot to come: ${label}`}>
+				<span class="tag">Screenshot</span>
+				<span class="label">{label}</span>
+			</div>
+		)
+	}
+	{caption && <figcaption>{caption}</figcaption>}
+</figure>
+
+<style>
+	.placeholder {
+		margin: 0;
+		min-width: 0;
+	}
+
+	.frame {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		justify-content: flex-end;
+		gap: 6px;
+		box-sizing: border-box;
+		width: 100%;
+		padding: 16px;
+		border: 3px solid #1a0c02;
+		border-radius: 12px;
+		box-shadow:
+			0 6px 0 var(--kt-shade, rgba(0, 0, 0, 0.3)),
+			inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+		background:
+			repeating-linear-gradient(
+				135deg,
+				color-mix(in srgb, currentColor 6%, transparent) 0 10px,
+				transparent 10px 20px
+			),
+			color-mix(in srgb, currentColor 4%, transparent);
+		overflow: hidden;
+	}
+
+	/* The real screenshot fills the frame edge to edge */
+	.shot {
+		padding: 0;
+		background: #1a0c02;
+	}
+
+	.shot img {
+		display: block;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	.tag {
+		font-size: 12px;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		opacity: 0.6;
+	}
+
+	.label {
+		max-width: 36ch;
+		font-size: clamp(15px, 1.3vw, 18px);
+		line-height: 1.35;
+	}
+
+	figcaption {
+		margin-top: 8px;
+		font-size: 12px;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		opacity: 0.6;
+	}
+</style>

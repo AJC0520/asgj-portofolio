@@ -1,0 +1,58 @@
+---
+// Text beside a picture or a demo: a heading and paragraphs (the slot) on the left, the "media" slot on the right
+interface Props {
+	heading: string;
+	center?: boolean; // centre the text against the media instead of aligning their tops
+}
+
+const { heading, center = false } = Astro.props;
+---
+
+<div class:list={['split', { center }]}>
+	<div class="copy">
+		<h5>{heading}</h5>
+		<slot />
+	</div>
+	<slot name="media" />
+</div>
+
+<style>
+	.split {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+		gap: 24px clamp(32px, 5vw, 80px);
+		align-items: start;
+	}
+
+	.split.center {
+		align-items: center;
+	}
+
+	.copy {
+		display: flex;
+		flex-direction: column;
+		gap: 14px;
+	}
+
+	h5 {
+		margin: 0;
+		font-size: clamp(20px, 1.8vw, 26px);
+		font-weight: 600;
+		line-height: 1.1;
+		letter-spacing: -0.02em;
+	}
+
+	.copy :global(p) {
+		margin: 0;
+		max-width: 52ch;
+		font-size: 15px;
+		line-height: 1.6;
+		opacity: 0.88;
+	}
+
+	@media (max-width: 900px) {
+		.split {
+			grid-template-columns: minmax(0, 1fr);
+		}
+	}
+</style>

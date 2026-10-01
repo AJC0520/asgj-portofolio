@@ -1,0 +1,161 @@
+---
+// Under the hood (the pit stop): how the data is kept private, then how the code is laid out.
+// Each mode has its own copy; Beeriokart adds its public page, shown next to the signed-in rules.
+import Section from './Section.astro';
+
+interface Props {
+	id: string;
+	publicPage?: boolean;
+}
+
+const { id, publicPage = false } = Astro.props;
+
+// How the code is laid out, and what each part is for
+const layers = [
+	{ path: 'views/', text: 'One thin page per screen: leaderboard, races, players, map, bracket.' },
+	{ path: 'components/', text: 'The pieces: race cards, the lead chart, the bracket flow, the track wheel.' },
+	{ path: 'stores/', text: 'Pinia stores that talk to Supabase: tournaments, brackets, sign-in.' },
+	{ path: 'utils/', text: 'Pure functions. Scoring and stats are worked out from the races, never stored.' },
+];
+---
+
+<Section id={id} title="Under the hood">
+	<div class:list={['hood', { pair: publicPage }]}>
+		<div class="explain">
+			<h5>Your tournaments</h5>
+			<p>
+				Every tournament belongs to the account that made it. Postgres enforces that with Row Level Security:
+				each query is checked against the signed-in user, so even a hand-made request only ever returns the
+				asker's own rows. Players and races inherit the rule through their tournament.
+			</p>
+			<pre><code>CREATE POLICY "Users can view own tournaments" ON tournaments
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can view races in their tournaments" ON races
+  FOR SELECT USING (
+    tournament_id IN (SELECT id FROM tournaments WHERE user_id = auth.uid())
+  );</code></pre>
+		</div>
+
+		{publicPage && (
+			<div class="explain">
+				<h5>The public page</h5>
+				<p>
+					The public bracket page needs no login, so the tables stay locked. Instead, two database functions
+					that run with elevated rights return only one account's tournaments and races, and nothing else.
+					Showing the bracket to friends never required loosening security.
+				</p>
+				<pre><code>supabase.rpc('get_trikom_tournaments')
+supabase.rpc('get_trikom_races', &#123; p_tournament_id &#125;)</code></pre>
+			</div>
+		)}
+	</div>
+
+	<dl class="layers">
+		{
+			layers.map((layer) => (
+				<div>
+					<dt>
+						<code>{layer.path}</code>
+					</dt>
+					<dd>{layer.text}</dd>
+				</div>
+			))
+		}
+	</dl>
+</Section>
+
+<style>
+	.hood {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		gap: 32px clamp(24px, 4vw, 56px);
+		max-width: 76ch;
+	}
+
+	/* Signed in and public, next to each other */
+	.hood.pair {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		max-width: none;
+	}
+
+	.explain {
+		display: flex;
+		flex-direction: column;
+		gap: 14px;
+		min-width: 0;
+	}
+
+	h5 {
+		margin: 0;
+		font-size: clamp(18px, 1.6vw, 22px);
+		font-weight: 600;
+		letter-spacing: -0.02em;
+	}
+
+	.explain p {
+		margin: 0;
+		font-size: 15px;
+		line-height: 1.6;
+		opacity: 0.88;
+	}
+
+	pre {
+		margin: 0;
+		padding: 16px;
+		border: 1px solid var(--rule);
+		border-radius: 4px;
+		background: color-mix(in srgb, #000 22%, transparent);
+		overflow-x: auto;
+		scrollbar-width: thin;
+	}
+
+	code {
+		font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+		font-size: 13px;
+		line-height: 1.6;
+	}
+
+	.layers {
+		display: grid;
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+		gap: 0 clamp(20px, 3vw, 40px);
+		margin: 0;
+	}
+
+	.layers div {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		padding: 14px 0;
+		border-top: 1px solid var(--rule);
+	}
+
+	dt code {
+		color: var(--kt-gold);
+		font-size: 14px;
+	}
+
+	dd {
+		margin: 0;
+		font-size: 14px;
+		line-height: 1.5;
+		opacity: 0.85;
+	}
+
+	@media (max-width: 900px) {
+		.hood.pair {
+			grid-template-columns: minmax(0, 1fr);
+		}
+
+		.layers {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+	}
+
+	@media (max-width: 560px) {
+		.layers {
+			grid-template-columns: minmax(0, 1fr);
+		}
+	}
+</style>

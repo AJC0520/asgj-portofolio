@@ -5,46 +5,132 @@
 // outlined with a hard drop shadow), scaled up from its navigation bar.
 // The element marked [data-detail-title] receives focus when the view opens.
 
+
+import homeScreen from '../../assets/karttracker/home.png';
+import BeeriokartMode from './kart-tracker/BeeriokartMode.astro';
+import Links from './kart-tracker/Links.astro';
+import NormalMode from './kart-tracker/NormalMode.astro';
+import Placeholder from './kart-tracker/Placeholder.astro';
+import Switcher from './kart-tracker/Switcher.astro';
+
 interface Props {
 	href?: string;
 	project: { year: string; tags: string[]; description: string; site?: string; href?: string };
 }
 
 const { project } = Astro.props;
+
+const facts = [
+	{ label: 'Role', value: 'Design & development' },
+	{ label: 'Year', value: project.year },
+	{ label: 'Frontend', value: 'Vue 3, TypeScript, Tailwind CSS' },
+	{ label: 'State', value: 'Pinia' },
+	{ label: 'Backend', value: 'Supabase: Postgres, Auth, Row Level Security' },
+	{ label: 'Hosting', value: 'Netlify' },
+];
 ---
 
-<div class="kart-tracker">
-	<p class="meta">{project.year} · {project.tags.join(' · ')}</p>
-	<h3 data-detail-title tabindex="-1" aria-label="KartTracker">
-		<span class="kart" aria-hidden="true">KART</span><span class="tracker" aria-hidden="true">TRACKER</span>
-	</h3>
-	<p class="lead">{project.description}</p>
-	<p class="placeholder">More about this project is coming soon.</p>
-	{
-		(project.site || project.href) && (
-			<p class="links">
-				{project.site && (
-					<a class="link" href={project.site} target="_blank" rel="noopener">
-						Visit the app <span aria-hidden="true">↗</span>
-					</a>
-				)}
-				{project.href && (
-					<a class="link" href={project.href} target="_blank" rel="noopener">
-						View on GitHub <span aria-hidden="true">↗</span>
-					</a>
-				)}
+<div class="kart-tracker" data-kart-tracker>
+	<header class="intro">
+		<p class="meta">{project.year} · Fun side-project</p>
+		<h3 data-detail-title tabindex="-1" aria-label="KartTracker">
+			<span class="kart" aria-hidden="true">KART</span><span class="tracker" aria-hidden="true">TRACKER</span>
+		</h3>
+	</header>
+
+	<div class="hero">
+		<div class="hero-text">
+			<p class="lead">{project.description}</p>
+			<p class="lead-more">
+				It also runs <strong>Beeriokart</strong> nights, like the ones Trikom hosts for Online: a double-elimination
+				bracket for the whole evening, with the drinking-game rules built in, jokers in the empty seats and a live
+				page everyone can follow.
 			</p>
-		)
-	}
+			<Links site={project.site} href={project.href} />
+		</div>
+		<Placeholder
+			image={homeScreen}
+			label="KartTracker's home screen: the logo over a sky with clouds, Mario in his kart, coins, and buttons for Tournaments and Beeriokart"
+		/>
+	</div>
+
+	<dl class="facts">
+		{
+			facts.map((fact) => (
+				<div>
+					<dt>{fact.label}</dt>
+					<dd>{fact.value}</dd>
+				</div>
+			))
+		}
+	</dl>
+
+	<div class="chequer" aria-hidden="true"></div>
+
+	<Switcher
+		label="Select mode"
+		options={[
+			{ id: 'normal', label: 'Tournament', description: 'A league that runs for weeks or months', icon: 'trophy' },
+			{ id: 'beeriokart', label: 'Beeriokart', description: 'One party night, one bracket', icon: 'beer' },
+		]}
+	>
+		<NormalMode slot="normal" />
+		<BeeriokartMode slot="beeriokart" />
+	</Switcher>
+
+	<footer class="finish">
+		<div class="chequer" aria-hidden="true"></div>
+		<Links site={project.site} href={project.href} codeLabel="Read the code on GitHub" />
+	</footer>
 </div>
 
 <style>
+	/* The page's local tokens: the app's own colours, so everything looks like it belongs to it */
 	.kart-tracker {
+		--kt-gold: #f4a700;
+		--kt-gold-edge: #a96800;
+		--kt-red: #cc1100;
+		--kt-cream: #f4efe1;
+		--kt-walnut: var(--color-dark-walnut);
+		--kt-ink: var(--color-dark-walnut);
+		--kt-shade: #2e1605; /* hard drop shadows under raised things */
+		--kt-well: rgba(0, 0, 0, 0.2); /* sunken panels */
+		--kt-p1: #e63946;
+		--kt-p2: #457b9d;
+		--kt-p3: #2dc653;
+		--kt-p4: #f4a261;
+		--rule: color-mix(in srgb, currentColor 25%, transparent);
+		--ease-out: cubic-bezier(0.165, 0.84, 0.44, 1);
+
+		position: relative;
+		isolation: isolate;
 		display: flex;
 		flex-direction: column;
-		align-items: flex-start;
-		gap: 20px;
-		max-width: 64ch;
+		gap: clamp(40px, 7vh, 72px);
+		min-width: 0;
+	}
+
+	/* A chequered flag fading in from the top-right corner, like the project's row in the list */
+	.kart-tracker::before {
+		content: '';
+		position: absolute;
+		top: -88px;
+		right: -16px;
+		z-index: -1;
+		width: min(60%, 760px);
+		height: 560px;
+		background: repeating-conic-gradient(var(--kt-cream) 0 25%, transparent 0 50%) right top / 40px 40px;
+		opacity: 0.07;
+		mask-image: radial-gradient(ellipse at top right, #000 10%, transparent 70%);
+		pointer-events: none;
+	}
+
+	/* ——— Intro ——— */
+
+	.intro {
+		display: flex;
+		flex-direction: column;
+		gap: 14px;
 	}
 
 	.meta {
@@ -57,7 +143,7 @@ const { project } = Astro.props;
 
 	/* The app's logo style. Outline and shadows are in em, so they scale with the size like the original */
 	h3 {
-		margin: 0.1em 0 0.15em;
+		margin: 0 0 0.15em;
 		font-family: var(--font-bowlby-one-sc);
 		font-weight: 400;
 		font-size: clamp(28px, 7.5vw, 120px); /* one long word: small enough to fit a 320px-wide phone */
@@ -67,48 +153,134 @@ const { project } = Astro.props;
 	}
 
 	.kart {
-		color: #f4a700;
-		-webkit-text-stroke: 0.035em #a96800;
+		color: var(--kt-gold);
+		-webkit-text-stroke: 0.035em var(--kt-gold-edge);
 		text-shadow:
 			0.045em 0.045em 0 #5b2d00,
 			0.07em 0.07em 0.14em rgba(0, 0, 0, 0.4);
 	}
 
 	.tracker {
-		color: #cc1100;
+		color: var(--kt-red);
 		-webkit-text-stroke: 0.035em #7a0000;
 		text-shadow:
 			0.045em 0.045em 0 #3b0000,
 			0.07em 0.07em 0.14em rgba(0, 0, 0, 0.4);
 	}
 
+	.hero {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+		gap: 32px clamp(32px, 6vw, 96px);
+		align-items: center;
+	}
+
+	.hero-text {
+		display: flex;
+		flex-direction: column;
+		gap: 28px;
+	}
+
 	.lead {
+		max-width: 40ch;
 		margin: 0;
-		font-size: 20px;
+		font-size: clamp(18px, 1.6vw, 22px);
 		line-height: 1.45;
 	}
 
-	.placeholder {
-		margin: 0;
+	/* The second mode, right under the lead: same voice, a step smaller */
+	.lead-more {
+		max-width: 46ch;
+		margin: -8px 0 0;
 		font-size: 16px;
+		line-height: 1.55;
+		opacity: 0.85;
+	}
+
+	.lead-more strong {
+		color: var(--kt-gold);
+		font-weight: 600;
+	}
+
+	.facts {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 0 clamp(24px, 4vw, 64px);
+		margin: 0;
+		border-top: 1px solid var(--rule);
+	}
+
+	.facts div {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		padding: 14px 0;
+		border-bottom: 1px solid var(--rule);
+	}
+
+	dt {
+		font-size: 12px;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
 		opacity: 0.6;
 	}
 
-	.links {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 12px 28px;
-		margin: 8px 0 0;
-	}
-
-	.link {
-		color: inherit;
+	dd {
+		margin: 0;
 		font-size: 16px;
-		text-underline-offset: 4px;
 	}
 
-	.link:focus-visible {
-		outline: 2px solid currentColor;
-		outline-offset: 4px;
+	/* ——— Chequered flag strips: before the modes, and at the finish ——— */
+
+	.chequer {
+		height: 16px;
+		border-radius: 3px;
+		background: repeating-conic-gradient(var(--kt-cream) 0 25%, #1a0c02 0 50%) 0 0 / 16px 16px;
+		opacity: 0.85;
+	}
+
+	.finish {
+		display: flex;
+		flex-direction: column;
+		gap: 24px;
+		padding-top: 12px;
+	}
+
+	@media (max-width: 900px) {
+		.hero {
+			grid-template-columns: minmax(0, 1fr);
+		}
+
+		.facts {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+	}
+
+	@media (max-width: 560px) {
+		.facts {
+			grid-template-columns: minmax(0, 1fr);
+		}
 	}
 </style>
+
+<script>
+	const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+	for (const root of document.querySelectorAll<HTMLElement>('[data-kart-tracker]')) {
+		// Sections ease in as they come into view (styles in ./kart-tracker/Section.astro). Skipped when motion is reduced.
+		if (!reduceMotion && 'IntersectionObserver' in window) {
+			const observer = new IntersectionObserver(
+				(entries) => {
+					for (const entry of entries) {
+						if (!entry.isIntersecting) continue;
+						entry.target.setAttribute('data-in', '');
+						observer.unobserve(entry.target);
+					}
+				},
+				{ threshold: 0.12 },
+			);
+			root.setAttribute('data-reveal-armed', '');
+			root.querySelectorAll('[data-reveal]').forEach((el) => observer.observe(el));
+		}
+	}
+</script>
