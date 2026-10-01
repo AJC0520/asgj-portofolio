@@ -5,7 +5,7 @@
 // `id`: the section (on the home page, an element with this id) or page the item stands for.
 // The navigation indicator underlines the current one and points from it to the one you hover.
 const links = [
-	{ id: 'work', label: 'Work', href: '/#work' },
+	{ id: 'projects', label: 'Projects', href: '/#projects' },
 	{ id: 'about', label: 'About', href: '/#about' },
 	{ id: 'contact', label: 'Contact', href: '#' },
 ];
@@ -110,6 +110,12 @@ const isHome = current === '/';
 		view-transition-name: site-header;
 		/* Set from the section underneath (data-header-color), so scrolling content never shows through */
 		background: var(--header-bg, transparent);
+	}
+
+	/* A section with its own text colour: links, the mark and the navigation indicator all follow it */
+	.site-header[data-ink] {
+		--yellow: var(--header-ink);
+		--cream: var(--header-ink);
 	}
 
 	/* Same grain as the section underneath (see data-header-grain), so the header blends into it */
@@ -257,6 +263,10 @@ const isHome = current === '/';
 			header.style.setProperty('--header-bg', under?.dataset.headerColor ?? 'transparent');
 			// Sections with a surface texture (data-header-grain) get it on the header too, so the two match
 			header.toggleAttribute('data-grain', under?.hasAttribute('data-header-grain') ?? false);
+			// Sections can also set the header's text colour (data-header-ink), e.g. on a light background
+			const ink = under?.dataset.headerInk;
+			header.toggleAttribute('data-ink', !!ink);
+			if (ink) header.style.setProperty('--header-ink', ink);
 		};
 		addEventListener(
 			'scroll',

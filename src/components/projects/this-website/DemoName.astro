@@ -1,0 +1,166 @@
+---
+// Demo: "AJ." drawn as small characters clipped to the letterforms, like the hero name.
+// Scrambles in the first time it's seen; characters near the cursor scramble and settle again.
+---
+
+<div class="demo-name" data-demo-name aria-hidden="true"><canvas></canvas></div>
+
+<style>
+	.demo-name {
+		position: relative;
+		width: 100%;
+		height: 100%;
+		font-family: var(--font-inter-tight);
+		font-weight: 600;
+	}
+
+	canvas {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+	}
+</style>
+
+<script>
+	const GLYPHS = 'abcdefghijklmnopqrstuvwxyz0123456789#%&*+=-/<>';
+	const TEXT = 'AJ.';
+	const SWEEP_MS = 700;
+	const RADIUS = 34;
+
+	for (const box of document.querySelectorAll<HTMLElement>('[data-demo-name]')) {
+		const canvas = box.querySelector('canvas')!;
+		const ctx = canvas.getContext('2d')!;
+		const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+		let xs: number[] = [];
+		let ys: number[] = [];
+		let chars: number[] = [];
+		let settle: number[] = [];
+		let scrambleUntil: number[] = [];
+		let mask: HTMLCanvasElement;
+		let cell = 6;
+		let width = 0;
+		let height = 0;
+		let start = -1;
+		let visible = false;
+		let running = false;
+		let tick = 0;
+
+		function build() {
+			width = box.clientWidth;
+			height = box.clientHeight;
+			if (!width || !height) return;
+			const scale = Math.min(devicePixelRatio || 1, 2);
+			canvas.width = Math.round(width * scale);
+			canvas.height = Math.round(height * scale);
+			ctx.setTransform(scale, 0, 0, scale, 0, 0);
+
+			const style = getComputedStyle(box);
+			const size = Math.min(height * 0.78, width * 0.42);
+			mask = document.createElement('canvas');
+			mask.width = canvas.width;
+			mask.height = canvas.height;
+			const mctx = mask.getContext('2d', { willReadFrequently: true })!;
+			mctx.setTransform(scale, 0, 0, scale, 0, 0);
+			mctx.font = `${style.fontWeight} ${size}px ${style.fontFamily}`;
+			mctx.textAlign = 'center';
+			mctx.textBaseline = 'middle';
+			if ('letterSpacing' in mctx) mctx.letterSpacing = `${-0.05 * size}px`;
+			mctx.fillText(TEXT, width / 2, height / 2 + size * 0.04);
+			const alpha = mctx.getImageData(0, 0, mask.width, mask.height).data;
+
+			cell = Math.max(5, Math.round(size / 22));
+			const cellW = cell * 0.6;
+			xs = [];
+			ys = [];
+			for (let y = 0; y < height; y += cell) {
+				for (let x = 0; x < width; x += cellW) {
+					const px = Math.floor((x + cellW / 2) * scale);
+					const py = Math.floor((y + cell / 2) * scale);
+					if (alpha[(py * mask.width + px) * 4 + 3] > 0) {
+						xs.push(x + cellW / 2);
+						ys.push(y + cell / 2);
+					}
+				}
+			}
+			chars = xs.map(() => (Math.random() * GLYPHS.length) | 0);
+			settle = xs.map((x) => (x / width) * SWEEP_MS + 150 + Math.random() * 300);
+			scrambleUntil = xs.map(() => 0);
+			wake();
+		}
+
+		function draw(now: number) {
+			// Not built yet (fonts still loading): try again next frame while visible
+			if (!mask) {
+				running = visible;
+				if (running) requestAnimationFrame(draw);
+				return;
+			}
+			const t = start < 0 ? -1 : reduceMotion ? Infinity : now - start;
+			const ink = getComputedStyle(box).color;
+			ctx.clearRect(0, 0, width, height);
+			ctx.font = `700 ${cell * 1.15}px ui-monospace, "SF Mono", Menlo, Consolas, monospace`;
+			ctx.textAlign = 'center';
+			ctx.textBaseline = 'middle';
+			ctx.fillStyle = ink;
+			tick++;
+
+			// Ambient life: now and then a few characters re-scramble
+			if (!reduceMotion && t > SWEEP_MS + 500 && tick % 8 === 0) {
+				for (let k = 0; k < 3; k++) scrambleUntil[(Math.random() * xs.length) | 0] = now + 200 + Math.random() * 300;
+			}
+
+			for (let i = 0; i < xs.length; i++) {
+				if (t < 0) break;
+				const settled = t >= settle[i] && now >= scrambleUntil[i];
+				if (!settled && tick % 3 === 0) chars[i] = (Math.random() * GLYPHS.length) | 0;
+				ctx.globalAlpha = settled ? 1 : 0.5;
+				ctx.fillText(GLYPHS[chars[i]], xs[i], ys[i]);
+			}
+			ctx.globalAlpha = 1;
+			ctx.globalCompositeOperation = 'destination-in';
+			ctx.drawImage(mask, 0, 0, width, height);
+			ctx.globalCompositeOperation = 'source-over';
+
+			// Keeps running while on screen (for the ambient flicker); stops when scrolled away
+			running = visible && !reduceMotion && t >= 0;
+			if (running) requestAnimationFrame(draw);
+		}
+
+		// Redraw once now (after a rebuild); the loop continues by itself if it should
+		function wake() {
+			if (!running) draw(performance.now());
+		}
+
+		new IntersectionObserver(([entry]) => {
+			visible = entry.isIntersecting;
+			if (visible && start < 0) start = performance.now();
+			if (visible && !running) {
+				running = true;
+				requestAnimationFrame(draw);
+			}
+		}).observe(box);
+
+		box.addEventListener('pointermove', (e) => {
+			if (reduceMotion) return;
+			const rect = box.getBoundingClientRect();
+			const px = e.clientX - rect.left;
+			const py = e.clientY - rect.top;
+			const now = performance.now();
+			for (let i = 0; i < xs.length; i++) {
+				const dx = xs[i] - px;
+				const dy = ys[i] - py;
+				if (dx * dx + dy * dy < RADIUS * RADIUS) scrambleUntil[i] = now + 180 + Math.random() * 260;
+			}
+		});
+
+		let lastWidth = 0;
+		new ResizeObserver(() => {
+			if (box.clientWidth === lastWidth) return;
+			lastWidth = box.clientWidth;
+			build();
+		}).observe(box);
+		document.fonts.ready.then(build);
+	}
+</script>

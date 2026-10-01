@@ -1,0 +1,175 @@
+---
+// Demo: a miniature of the site's navigation. The underline under the current item ("Projects") folds into an
+// arrow pointing at the hovered one. Plays by itself until you hover it.
+const items = ['AJ.', 'Projects', 'About', 'Contact'];
+const CURRENT = 1;
+---
+
+<div class="demo-nav" data-demo-nav data-current={CURRENT} aria-hidden="true">
+	<div class="items">
+		{items.map((item, i) => <span class:list={['item', i === 0 && 'mark']}>{item}</span>)}
+	</div>
+	<svg class="indicator">
+		<path class="shaft"></path>
+		<path class="head"></path>
+	</svg>
+</div>
+
+<style>
+	.demo-nav {
+		position: relative;
+		display: grid;
+		place-items: center;
+		width: 100%;
+		height: 100%;
+		font-family: var(--font-inter-tight);
+		font-weight: 600;
+	}
+
+	.items {
+		display: flex;
+		align-items: center;
+		gap: clamp(20px, 4vw, 40px);
+		font-size: 15px;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
+
+	.item {
+		padding: 6px 0;
+		cursor: default;
+	}
+
+	.mark {
+		font-size: 19px;
+		letter-spacing: -0.02em;
+	}
+
+	.indicator {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		overflow: visible;
+		pointer-events: none;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+</style>
+
+<script>
+	// Same behaviour as the header (Header.astro), scaled down
+	const FOLLOW = 14;
+	const HEAD = 5;
+	const DROP = 10;
+	const RADIUS = 6;
+	const GAP = 6;
+	const AUTO_MS = 1400; // a new auto "hover" this often while you're not hovering yourself
+
+	for (const box of document.querySelectorAll<HTMLElement>('[data-demo-nav]')) {
+		const items = [...box.querySelectorAll<HTMLElement>('.item')];
+		const shaft = box.querySelector<SVGPathElement>('.shaft')!;
+		const head = box.querySelector<SVGPathElement>('.head')!;
+		const current = items[Number(box.dataset.current)];
+		const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+		let hovered: HTMLElement | undefined;
+		let userHovering = false;
+		const shown = { x1: 0, x2: 0, head: 0 };
+		let target = { ...shown };
+		let lineY = 0;
+		let placed = false;
+		let running = false;
+		let last = 0;
+		let visible = false;
+
+		function box_(item: HTMLElement) {
+			const r = item.getBoundingClientRect();
+			const o = box.getBoundingClientRect();
+			return { left: r.left - o.left, right: r.right - o.left, center: r.left - o.left + r.width / 2, bottom: r.bottom - o.top };
+		}
+
+		function retarget() {
+			const at = box_(current);
+			lineY = Math.max(...items.map((item) => box_(item).bottom)) + GAP;
+			if (hovered && hovered !== current) target = { x1: at.center, x2: box_(hovered).center, head: 1 };
+			else target = { x1: at.left, x2: at.right, head: 0 };
+			if (!placed || reduceMotion) {
+				Object.assign(shown, target);
+				placed = true;
+			}
+			if (!running) {
+				running = true;
+				last = performance.now();
+				requestAnimationFrame(frame);
+			}
+		}
+
+		function draw() {
+			const { x1, x2 } = shown;
+			const depth = DROP * shown.head;
+			const bottom = lineY + depth;
+			const dir = Math.sign(x2 - x1) || 1;
+			const r = Math.min(RADIUS, depth, Math.abs(x2 - x1) / 2);
+			const size = HEAD * shown.head;
+			const tip = lineY - 1;
+			shaft.setAttribute(
+				'd',
+				`M${x1} ${lineY}L${x1} ${bottom - r}Q${x1} ${bottom} ${x1 + dir * r} ${bottom}` +
+					`L${x2 - dir * r} ${bottom}Q${x2} ${bottom} ${x2} ${bottom - r}L${x2} ${size > 0.2 ? tip : lineY}`,
+			);
+			head.setAttribute('d', size > 0.2 ? `M${x2 - size} ${tip + size * 1.2}L${x2} ${tip}L${x2 + size} ${tip + size * 1.2}` : '');
+		}
+
+		function frame(now: number) {
+			const dt = Math.min(0.05, (now - last) / 1000);
+			last = now;
+			const k = 1 - Math.exp(-FOLLOW * dt);
+			let moving = false;
+			for (const key of ['x1', 'x2', 'head'] as const) {
+				shown[key] += (target[key] - shown[key]) * k;
+				if (Math.abs(target[key] - shown[key]) > 0.05) moving = true;
+				else shown[key] = target[key];
+			}
+			draw();
+			running = moving;
+			if (moving) requestAnimationFrame(frame);
+		}
+
+		for (const item of items) {
+			item.addEventListener('pointerenter', () => {
+				userHovering = true;
+				hovered = item;
+				retarget();
+			});
+		}
+		box.addEventListener('pointerleave', () => {
+			userHovering = false;
+			hovered = undefined;
+			retarget();
+		});
+
+		// Plays by itself: point at each other item in turn, then back to the underline
+		const others = items.filter((item) => item !== current);
+		let step = 0;
+		setInterval(() => {
+			if (userHovering || !visible || reduceMotion) return;
+			hovered = step % (others.length + 1) === others.length ? undefined : others[step % (others.length + 1)];
+			step++;
+			retarget();
+		}, AUTO_MS);
+
+		new IntersectionObserver(([entry]) => (visible = entry.isIntersecting)).observe(box);
+		new ResizeObserver(() => {
+			placed = false;
+			retarget();
+		}).observe(box);
+		document.fonts.ready.then(() => {
+			placed = false;
+			retarget();
+		});
+	}
+</script>

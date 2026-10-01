@@ -1,0 +1,128 @@
+---
+// Demo: a close-up of the Tromsø city centre from the hero map, with the car light driving the real routes.
+// Uses the same files as the hero (public/tromso-map.svg, public/tromso-routes.json).
+const VIEW = { x: 560, y: 480, width: 520, height: 280 }; // map units: around the city centre
+---
+
+<div class="demo-map" data-demo-map data-view={JSON.stringify(VIEW)} aria-hidden="true">
+	<svg viewBox={`${VIEW.x} ${VIEW.y} ${VIEW.width} ${VIEW.height}`} preserveAspectRatio="xMidYMid slice">
+		<g class="streets"></g>
+		<path class="glow"></path>
+		<path class="core"></path>
+	</svg>
+</div>
+
+<style>
+	.demo-map {
+		width: 100%;
+		height: 100%;
+	}
+
+	svg {
+		display: block;
+		width: 100%;
+		height: 100%;
+	}
+
+	.streets {
+		fill: none;
+		stroke: currentColor;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		opacity: 0.4;
+	}
+
+	.glow,
+	.core {
+		fill: none;
+		stroke: #f4efe1;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		opacity: 0;
+	}
+
+	.glow {
+		stroke-width: 2.6;
+	}
+
+	.core {
+		stroke-width: 0.9;
+	}
+</style>
+
+<script>
+	const SPEED = 320; // map units per second
+	const PAUSE = [500, 1400]; // ms between drives
+	const CORE = 26;
+	const GLOW = 56;
+
+	for (const box of document.querySelectorAll<HTMLElement>('[data-demo-map]')) {
+		const view = JSON.parse(box.dataset.view!);
+		const streets = box.querySelector<SVGGElement>('.streets')!;
+		const glow = box.querySelector<SVGPathElement>('.glow')!;
+		const core = box.querySelector<SVGPathElement>('.core')!;
+		const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+		let visible = false;
+		let loaded = false;
+		let routes: { d: string; length: number }[] = [];
+
+		async function load() {
+			loaded = true;
+			const [svg, data] = await Promise.all([
+				fetch('/tromso-map.svg').then((res) => res.text()),
+				fetch('/tromso-routes.json').then((res) => res.json()),
+			]);
+			// Streets as vectors: a constant on-screen line width whatever the zoom
+			const ns = 'http://www.w3.org/2000/svg';
+			for (const [, w, d] of svg.matchAll(/<path stroke-width="([\d.]+)" d="([^"]+)"\/>/g)) {
+				const path = document.createElementNS(ns, 'path');
+				path.setAttribute('d', d);
+				path.setAttribute('stroke-width', `${Math.max(0.7, Number(w))}`);
+				path.setAttribute('vector-effect', 'non-scaling-stroke');
+				streets.append(path);
+			}
+			// Only routes that start inside this close-up
+			const inView = (d: string) => {
+				const m = d.match(/^M(-?\d*\.?\d+)[\s,]?(-?\d*\.?\d+)/);
+				if (!m) return false;
+				const x = Number(m[1]);
+				const y = Number(m[2]);
+				return x > view.x && x < view.x + view.width && y > view.y && y < view.y + view.height;
+			};
+			routes = data.routes.filter((r: { d: string; length: number }) => inView(r.d) && r.length > 300);
+			if (!reduceMotion && routes.length) loop();
+		}
+
+		async function loop() {
+			while (true) {
+				await new Promise((r) => setTimeout(r, PAUSE[0] + Math.random() * (PAUSE[1] - PAUSE[0])));
+				if (!visible) continue;
+				const route = routes[(Math.random() * routes.length) | 0];
+				const duration = ((route.length + GLOW) / SPEED) * 1000;
+				const runs = [
+					[core, CORE, 0.95],
+					[glow, GLOW, 0.3],
+				].map(([el, dash, strength]) => {
+					const path = el as SVGPathElement;
+					path.setAttribute('d', route.d);
+					path.style.strokeDasharray = `${dash} ${route.length + GLOW * 2}`;
+					return path.animate(
+						[
+							{ strokeDashoffset: `${dash}`, opacity: 0 },
+							{ opacity: strength, offset: 0.08 },
+							{ opacity: strength, offset: 0.9 },
+							{ strokeDashoffset: `${-route.length - GLOW + (dash as number)}`, opacity: 0 },
+						],
+						{ duration, easing: 'linear' },
+					);
+				});
+				await Promise.all(runs.map((run) => run.finished));
+			}
+		}
+
+		new IntersectionObserver(([entry]) => {
+			visible = entry.isIntersecting;
+			if (visible && !loaded) load();
+		}).observe(box);
+	}
+</script>

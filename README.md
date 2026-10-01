@@ -18,13 +18,13 @@ Palette from [Coolors](https://coolors.co/palette/04151f-183a37-efd6ac-c44900-43
 | :-- | :-- | :-- | :-- |
 | Ink Black | `#04151f` | `--color-ink-black` | Hero (`--color-hero`) |
 | Burnt Orange | `#c44900` | `--color-burnt-orange` | About (`--color-about`) |
-| Dark Slate Grey | `#183a37` | `--color-dark-slate-grey` | Work (`--color-work`) |
+| Dark Slate Grey | `#183a37` | `--color-dark-slate-grey` | Projects (`--color-projects`) |
 | Wheat | `#efd6ac` | `--color-wheat` | Not used yet |
 | Midnight Violet | `#432534` | `--color-midnight-violet` | Not used yet |
 
 ### Project colours
 
-A second palette for the Work section, one colour per project (the `accent` and `onAccent` fields in `src/components/Projects.astro`). Also defined in `:root`.
+A second palette for the Projects section, one colour per project (the `accent` and `onAccent` fields in `src/components/Projects.astro`). Also defined in `:root`.
 
 | Colour | Hex | Token |
 | :-- | :-- | :-- |

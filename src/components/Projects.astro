@@ -1,17 +1,36 @@
 ---
 // Projects: an index of rows (year, name, description, tags). Hovering a row wipes in the project's own colour;
 // clicking it slides the list out to the left and the project's detail pane in from the right, in that colour.
-// Each project has its own address (#work/<slug>), so the browser's back button and shared links work.
+// Each project has its own address (#projects/<slug>), so the browser's back button and shared links work.
+//
+// Each project's view is its own component in ./projects/ (its own layout and styling); this file provides the
+// colours, the slide, the scroll lock and the "All projects" button. Projects without a component yet show a
+// simple placeholder view.
+import type { AstroComponentFactory } from 'astro/runtime/server/index.js';
+import { logoFor, logos } from './projects/logos';
+import ThisWebsite from './projects/ThisWebsite.astro';
 
-const projects = [
+type Project = {
+	year: string;
+	name: string;
+	description: string;
+	tags: string[];
+	href?: string;
+	accent: string;
+	onAccent: string;
+	component?: AstroComponentFactory;
+};
+
+const projects = ([
 	{
 		year: '2026',
 		name: 'This website',
 		description: 'My portfolio: a name made of characters, a map of Tromsø and probably too many animations.',
-		tags: ['Astro', 'TypeScript', 'Canvas'],
+		tags: ['Astro', 'TypeScript', 'Canvas', 'SVG'],
 		href: 'https://github.com/AJC0520/asgj-portofolio',
 		accent: 'var(--color-camel)',
 		onAccent: 'var(--color-charcoal-brown)',
+		component: ThisWebsite,
 	},
 	{
 		year: '2025',
@@ -40,17 +59,17 @@ const projects = [
 		accent: 'var(--color-dry-sage)',
 		onAccent: 'var(--color-charcoal-brown)',
 	},
-].map((project) => ({
+] as Project[]).map((project) => ({
 	...project,
 	slug: project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
 }));
 ---
 
-<section id="work" data-header-color="var(--color-work)">
+<section id="projects" data-header-color="var(--color-projects)">
 	<div class="track">
 		<!-- The list -->
 		<div class="pane list-pane">
-			<h2>Work</h2>
+			<h2>Projects</h2>
 
 			<ol class="projects">
 				{
@@ -66,7 +85,21 @@ const projects = [
 								<span class="year">{project.year}</span>
 								<span class="name">{project.name}</span>
 								<span class="description">{project.description}</span>
-								<span class="tags">{project.tags.join(' · ')}</span>
+								<span class="tags">
+									{project.tags.map((tag) => {
+										const logo = logoFor(tag);
+										return (
+											<span class="tag">
+												{logo && (
+													<svg viewBox="0 0 24 24" aria-hidden="true">
+														<path d={logos[logo]} />
+													</svg>
+												)}
+												{tag}
+											</span>
+										);
+									})}
+								</span>
 								<span class="arrow" aria-hidden="true">
 									→
 								</span>
@@ -85,22 +118,31 @@ const projects = [
 						class="detail"
 						data-project={project.slug}
 						data-accent={project.accent}
+						data-on-accent={project.onAccent}
 						style={`--accent: ${project.accent}; --on-accent: ${project.onAccent}`}
 						hidden
 					>
 						<button class="back" type="button" data-close>
 							<span aria-hidden="true">←</span> All projects
 						</button>
-						<p class="meta">
-							{project.year} · {project.tags.join(' · ')}
-						</p>
-						<h3 tabindex="-1">{project.name}</h3>
-						<p class="lead">{project.description}</p>
-						<p class="placeholder">More about this project is coming soon.</p>
-						{project.href && (
-							<a class="link" href={project.href} target="_blank" rel="noopener">
-								View on GitHub <span aria-hidden="true">↗</span>
-							</a>
+						{project.component ? (
+							<project.component href={project.href} />
+						) : (
+							<div class="generic">
+								<p class="meta">
+									{project.year} · {project.tags.join(' · ')}
+								</p>
+								<h3 data-detail-title tabindex="-1">
+									{project.name}
+								</h3>
+								<p class="lead">{project.description}</p>
+								<p class="placeholder">More about this project is coming soon.</p>
+								{project.href && (
+									<a class="link" href={project.href} target="_blank" rel="noopener">
+										View on GitHub <span aria-hidden="true">↗</span>
+									</a>
+								)}
+							</div>
 						)}
 					</article>
 				))
@@ -110,7 +152,7 @@ const projects = [
 </section>
 
 <style>
-	#work {
+	#projects {
 		--cream: #f4efe1;
 		--ease-out-quart: cubic-bezier(0.165, 0.84, 0.44, 1);
 		/* The list ↔ detail slide: a large surface moving on screen, so ease-in-out (speeds up, settles) */
@@ -118,7 +160,7 @@ const projects = [
 
 		display: grid;
 		min-height: 100dvh;
-		background: var(--color-work);
+		background: var(--color-projects);
 		color: var(--cream);
 		font-family: var(--font-inter-tight);
 		font-weight: 600;
@@ -133,7 +175,7 @@ const projects = [
 		transition: transform 520ms var(--ease-in-out-quart);
 	}
 
-	#work[data-detail] .track {
+	#projects[data-detail] .track {
 		transform: translateX(-100%);
 		transition-duration: 650ms;
 	}
@@ -146,10 +188,15 @@ const projects = [
 
 	/* While a project is open the page is locked (see the script): the pane fills the screen and scrolls
 	   on its own if its content gets long, without dragging the page along */
-	#work[data-detail] .detail-pane {
+	#projects[data-detail] .detail-pane {
 		max-height: 100dvh;
 		overflow-y: auto;
 		overscroll-behavior: contain;
+		scrollbar-width: none; /* like the page: scrolls, no visible bar */
+	}
+
+	#projects[data-detail] .detail-pane::-webkit-scrollbar {
+		display: none;
 	}
 
 	:global(html[data-scroll-lock]) {
@@ -157,8 +204,10 @@ const projects = [
 	}
 
 	.detail-pane {
-		background: var(--accent, var(--color-work));
+		background: var(--accent, var(--color-projects));
 		color: var(--on-accent, var(--cream));
+		/* The back button's full-width strip must not spill into the list pane next to it */
+		overflow-x: clip;
 	}
 
 	h2 {
@@ -186,7 +235,8 @@ const projects = [
 		position: relative;
 		isolation: isolate;
 		display: grid;
-		grid-template-columns: 64px minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 260px) 32px;
+		/* The tags column sizes to its content, so every technology shows on one line */
+		grid-template-columns: 64px minmax(0, 1.2fr) minmax(0, 1fr) max-content 32px;
 		align-items: baseline;
 		gap: 24px;
 		width: 100%;
@@ -234,8 +284,25 @@ const projects = [
 		opacity: 0.8;
 	}
 
+	/* Tags with their tool's logo where there is one (see projects/logos.ts) */
 	.tags {
-		text-align: right;
+		display: flex;
+		flex-wrap: nowrap;
+		justify-content: flex-end;
+		gap: 4px 14px;
+	}
+
+	.tag {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+	}
+
+	.tag svg {
+		width: 14px;
+		height: 14px;
+		flex: none;
+		fill: currentColor;
 	}
 
 	.arrow {
@@ -277,8 +344,6 @@ const projects = [
 		display: flex;
 		flex-direction: column;
 		align-items: flex-start;
-		gap: 20px;
-		max-width: 64ch;
 	}
 
 	/* Only the open project is shown (display: flex above would otherwise override [hidden]) */
@@ -286,14 +351,35 @@ const projects = [
 		display: none;
 	}
 
+	/* The project's own component takes the full width; the placeholder view stays narrow */
+	.detail > :global(:not(.back)) {
+		align-self: stretch;
+	}
+
+	.generic {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 20px;
+		max-width: 64ch;
+	}
+
+	/* Stays just under the header while the project scrolls, on a full-width strip in the project's colour
+	   (box-shadow + clip-path stretch its background sideways without affecting layout) */
 	.back {
+		position: sticky;
+		/* Sticky offsets count from inside the pane's padding (88px): -34px puts it at 54px, under the header */
+		top: -34px;
+		z-index: 2;
 		display: inline-flex;
 		align-items: center;
 		gap: 10px;
-		margin-bottom: clamp(16px, 4vh, 40px);
-		padding: 8px 0;
+		margin: -34px 0 clamp(16px, 4vh, 40px);
+		padding: 10px 0;
 		border: 0;
-		background: none;
+		background: var(--accent);
+		box-shadow: 0 0 0 100vmax var(--accent);
+		clip-path: inset(0 -100vmax);
 		color: inherit;
 		font: inherit;
 		font-size: 14px;
@@ -375,13 +461,14 @@ const projects = [
 		}
 
 		.tags {
-			text-align: left;
+			flex-wrap: wrap;
+			justify-content: flex-start;
 		}
 	}
 
 	@media (prefers-reduced-motion: reduce) {
 		.track,
-		#work[data-detail] .track,
+		#projects[data-detail] .track,
 		.row::before,
 		.name,
 		.arrow {
@@ -395,7 +482,7 @@ const projects = [
 	const CLOSE_MS = 520;
 	const EASE = 'cubic-bezier(0.77, 0, 0.175, 1)';
 
-	const section = document.querySelector<HTMLElement>('#work')!;
+	const section = document.querySelector<HTMLElement>('#projects')!;
 	const track = section.querySelector<HTMLElement>('.track')!;
 	const listPane = section.querySelector<HTMLElement>('.list-pane')!;
 	const detailPane = section.querySelector<HTMLElement>('.detail-pane')!;
@@ -407,10 +494,13 @@ const projects = [
 	let lockTimer = 0;
 
 	// The header takes the colour of the section under it; let it change in step with the slide
-	function tintHeader(color: string, duration: number) {
+	function tintHeader(color: string, ink: string | undefined, duration: number) {
 		section.dataset.headerColor = color;
+		// The header's text follows the project's text colour, so it stays readable on light colours
+		if (ink) section.dataset.headerInk = ink;
+		else delete section.dataset.headerInk;
 		if (header && duration && !reduceMotion) {
-			header.style.transition = `background-color ${duration}ms ${EASE}`;
+			header.style.transition = `background-color ${duration}ms ${EASE}, color ${duration}ms ${EASE}`;
 			setTimeout(() => (header.style.transition = ''), duration);
 		}
 		window.dispatchEvent(new Event('scroll')); // the header re-reads its colour on scroll
@@ -435,7 +525,7 @@ const projects = [
 		animate ? show() : withoutTransition(show);
 		listPane.inert = true;
 		detailPane.inert = false;
-		tintHeader(detail.dataset.accent!, animate ? OPEN_MS : 0);
+		tintHeader(detail.dataset.accent!, detail.dataset.onAccent, animate ? OPEN_MS : 0);
 		detailPane.scrollTop = 0;
 
 		// Bring the section's top into view while the pane slides in, then lock the page there
@@ -448,7 +538,7 @@ const projects = [
 				if (openSlug !== slug) return;
 				scrollTo({ top: section.offsetTop, behavior: 'instant' });
 				document.documentElement.toggleAttribute('data-scroll-lock', true);
-				detail.querySelector<HTMLElement>('h3')?.focus({ preventScroll: true });
+				detail.querySelector<HTMLElement>('[data-detail-title]')?.focus({ preventScroll: true });
 			},
 			animate ? OPEN_MS : 0,
 		);
@@ -464,21 +554,25 @@ const projects = [
 		animate ? hide() : withoutTransition(hide);
 		listPane.inert = false;
 		detailPane.inert = true;
-		tintHeader(listColor, animate ? CLOSE_MS : 0);
+		tintHeader(listColor, undefined, animate ? CLOSE_MS : 0);
+		// Once the slide is done, put the detail away so nothing of it can show next to the list
+		setTimeout(() => {
+			if (!openSlug) for (const d of details) d.hidden = true;
+		}, animate ? CLOSE_MS : 0);
 		// Back to the row you came from
 		section.querySelector<HTMLElement>(`[data-open="${was}"]`)?.focus({ preventScroll: true });
 	}
 
-	// The address is the source of truth: #work/<slug> shows a project, anything else shows the list
+	// The address is the source of truth: #projects/<slug> shows a project, anything else shows the list
 	function sync(animate = true) {
-		const match = location.hash.match(/^#work\/(.+)$/);
+		const match = location.hash.match(/^#projects\/(.+)$/);
 		if (match) open(decodeURIComponent(match[1]), animate);
 		else close(animate);
 	}
 
 	for (const row of section.querySelectorAll<HTMLElement>('[data-open]')) {
 		row.addEventListener('click', () => {
-			history.pushState({ fromList: true }, '', `#work/${row.dataset.open}`);
+			history.pushState({ fromList: true }, '', `#projects/${row.dataset.open}`);
 			sync();
 		});
 	}
@@ -487,7 +581,7 @@ const projects = [
 		// Opened from the list: step back in history (so Back/Forward stay tidy); from a shared link: go to the list
 		if (history.state?.fromList) history.back();
 		else {
-			history.pushState(null, '', '#work');
+			history.pushState(null, '', '#projects');
 			sync();
 		}
 	}
