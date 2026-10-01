@@ -4,14 +4,17 @@
 
 // `id`: the section (on the home page, an element with this id) or page the item stands for.
 // The navigation indicator underlines the current one and points from it to the one you hover.
-const links = [
+// `copy`: clicking copies this to the clipboard instead (with a small "copied" note); the href is the fallback.
+const EMAIL = 'asgeirjacobsen@gmail.com';
+const links: { id: string; label: string; href: string; copy?: string }[] = [
 	{ id: 'projects', label: 'Projects', href: '/#projects' },
 	{ id: 'about', label: 'About', href: '/#about' },
-	{ id: 'contact', label: 'Contact', href: '#' },
+	{ id: 'contact', label: 'Contact', href: `mailto:${EMAIL}`, copy: EMAIL },
 ];
 
-// Add an href to each once there is somewhere to link to
-const profiles = [
+// A profile without an href (yet) is a button that shows `wip` in a note under it instead
+const LINKEDIN = 'https://www.linkedin.com/in/asgeirjacobsen/';
+const profiles: { label: string; href?: string; path: string; wip?: { title: string; before: string; link: string; after: string } }[] = [
 	{
 		label: 'GitHub',
 		href: 'https://github.com/ajc0520/',
@@ -19,12 +22,13 @@ const profiles = [
 	},
 	{
 		label: 'LinkedIn',
-		href: 'https://www.linkedin.com/in/asgeirjacobsen/',
+		href: LINKEDIN,
 		path: 'M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 4.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z',
 	},
 	{
 		label: 'CV',
 		href: undefined,
+		wip: { title: 'CV: work in progress', before: 'Check out my ', link: 'LinkedIn', after: ' for now' },
 		// Page with a folded corner and two text lines cut out
 		path: 'M4 1h11l6 6v16H4zM14.5 2.5V7.5h5zM7.5 12h9v1.75h-9zM7.5 16h9v1.75h-9z',
 	},
@@ -51,7 +55,7 @@ const isHome = current === '/';
 		<nav aria-label="Main">
 			{
 				links.map((link) => (
-					<a href={link.href} data-nav={link.id}>
+					<a href={link.href} data-nav={link.id} data-copy={link.copy}>
 						{link.label}
 					</a>
 				))
@@ -62,23 +66,49 @@ const isHome = current === '/';
 			{
 				profiles.map((profile) => (
 					<li>
-						<a
-							href={profile.href}
-							aria-label={profile.label}
-							target="_blank"
-							rel="noopener noreferrer"
-							title={profile.label}
-							data-profile={profile.label.toLowerCase()}
-						>
-							<svg viewBox="0 0 24 24" aria-hidden="true">
-								<path d={profile.path} fill-rule="evenodd" />
-							</svg>
-						</a>
+						{profile.href ? (
+							<a
+								href={profile.href}
+								aria-label={profile.label}
+								target="_blank"
+								rel="noopener noreferrer"
+								title={profile.label}
+								data-profile={profile.label.toLowerCase()}
+							>
+								<svg viewBox="0 0 24 24" aria-hidden="true">
+									<path d={profile.path} fill-rule="evenodd" />
+								</svg>
+							</a>
+						) : (
+							<button
+								type="button"
+								aria-label={`${profile.label} (work in progress)`}
+								title={profile.label}
+								data-profile={profile.label.toLowerCase()}
+								data-wip={JSON.stringify({ ...profile.wip, href: LINKEDIN })}
+							>
+								<svg viewBox="0 0 24 24" aria-hidden="true">
+									<path d={profile.path} fill-rule="evenodd" />
+								</svg>
+							</button>
+						)}
 					</li>
 				))
 			}
 		</ul>
 	</div>
+
+	<!-- A small note that drops in under an item after a click: "Email copied", "CV: work in progress"
+	     (filled in and placed by the script) -->
+	<p class="toast" data-toast role="status" aria-live="polite">
+		<span class="toast-inner" data-toast-inner hidden>
+			<svg viewBox="0 0 16 16" aria-hidden="true"><path data-toast-icon></path></svg>
+			<span class="toast-text">
+				<b data-toast-title></b>
+				<span data-toast-body></span>
+			</span>
+		</span>
+	</p>
 
 	<!-- Navigation indicator: an underline under the current item that becomes an arrow to the hovered one -->
 	<svg class="nav-indicator" aria-hidden="true">
@@ -205,9 +235,18 @@ const isHome = current === '/';
 		list-style: none;
 	}
 
-	.profiles a {
+	.profiles a,
+	.profiles button {
 		display: block;
 		transition: color 150ms ease;
+	}
+
+	.profiles button {
+		padding: 0;
+		border: 0;
+		background: none;
+		color: inherit;
+		cursor: pointer;
 	}
 
 	.profiles svg {
@@ -218,15 +257,136 @@ const isHome = current === '/';
 	}
 
 	@media (hover: hover) {
-		.profiles a[href]:hover {
+		.profiles a[href]:hover,
+		.profiles button:hover {
 			color: var(--yellow);
 		}
 	}
 
 	.profiles a:focus-visible,
+	.profiles button:focus-visible,
 	nav a:focus-visible {
 		outline: 2px solid var(--yellow);
 		outline-offset: 4px;
+	}
+
+	/* ——— The note under an item ——— */
+
+	.toast {
+		position: absolute;
+		top: 0;
+		left: 0;
+		margin: 0;
+		pointer-events: none;
+	}
+
+	.toast-inner {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding: 9px 14px 9px 11px;
+		border-radius: 12px;
+		background: var(--yellow);
+		color: #04151f;
+		font-size: 13px;
+		font-weight: 500;
+		letter-spacing: 0;
+		text-transform: none;
+		white-space: nowrap;
+		box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.45);
+		transform-origin: top center;
+		pointer-events: auto; /* it can hold a link */
+	}
+
+	.toast-inner[hidden] {
+		display: none;
+	}
+
+	/* In: drops down a little and settles. Out: fades up and away. */
+	.toast-inner[data-state='in'] {
+		animation: toast-in 320ms cubic-bezier(0.165, 0.84, 0.44, 1) both;
+	}
+
+	.toast-inner[data-state='out'] {
+		animation: toast-out 220ms ease-in both;
+	}
+
+	@keyframes toast-in {
+		from {
+			opacity: 0;
+			transform: translateY(-8px) scale(0.92);
+		}
+	}
+
+	@keyframes toast-out {
+		to {
+			opacity: 0;
+			transform: translateY(-6px) scale(0.96);
+		}
+	}
+
+	.toast-inner svg {
+		flex: none;
+		width: 18px;
+		height: 18px;
+		padding: 3px;
+		border-radius: 50%;
+		background: #04151f;
+		fill: none;
+		stroke: var(--yellow);
+		stroke-width: 2.2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+
+	/* The icon draws itself once the note has landed */
+	.toast-inner[data-state='in'] path {
+		stroke-dasharray: 16;
+		animation: draw-icon 360ms cubic-bezier(0.165, 0.84, 0.44, 1) 160ms both;
+	}
+
+	@keyframes draw-icon {
+		from {
+			stroke-dashoffset: 16;
+		}
+		to {
+			stroke-dashoffset: 0;
+		}
+	}
+
+	.toast-text {
+		display: flex;
+		flex-direction: column;
+		line-height: 1.25;
+	}
+
+	.toast-text b {
+		font-weight: 700;
+	}
+
+	.toast-text span {
+		opacity: 0.8;
+	}
+
+	/* The link is made by the script, so it has no scope attribute: :global */
+	.toast-text :global(a) {
+		color: inherit;
+		font-weight: 700;
+		text-decoration: underline;
+		text-underline-offset: 2px;
+	}
+
+	.toast-text :global(a:focus-visible) {
+		outline: 2px solid #04151f;
+		outline-offset: 2px;
+		border-radius: 2px;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.toast-inner[data-state],
+		.toast-inner[data-state] path {
+			animation: none;
+		}
 	}
 
 	@media (max-width: 640px) {
@@ -450,6 +610,71 @@ const isHome = current === '/';
 	});
 	measure();
 	updateCurrent();
+
+	// ——— Notes under items ———
+	// Contact copies the email and says so; the CV (not ready yet) says it's a work in progress.
+	// The note stays while the pointer is on it, so its link can be clicked.
+	const ICONS = {
+		tick: 'M3 8.5l3.2 3L13 4.5',
+		clock: 'M8 3.8V8.2l2.8 1.8', // clock hands: "in progress"
+	};
+	const toast = header.querySelector<HTMLElement>('[data-toast]')!;
+	const toastInner = toast.querySelector<HTMLElement>('[data-toast-inner]')!;
+	let hideTimer = 0;
+	let showFor = 0;
+
+	function hideSoon(ms: number) {
+		clearTimeout(hideTimer);
+		hideTimer = window.setTimeout(() => {
+			toastInner.dataset.state = 'out';
+			hideTimer = window.setTimeout(() => (toastInner.hidden = true), instant ? 0 : 220);
+		}, ms);
+	}
+
+	function showToast(item: HTMLElement, note: { icon: keyof typeof ICONS; title: string; body: (string | Node)[] }, ms: number) {
+		toastInner.querySelector('[data-toast-icon]')!.setAttribute('d', ICONS[note.icon]);
+		toastInner.querySelector('[data-toast-title]')!.textContent = note.title;
+		toastInner.querySelector('[data-toast-body]')!.replaceChildren(...note.body);
+		toastInner.hidden = false;
+		// Restart the drop-in, even if it's already showing
+		toastInner.removeAttribute('data-state');
+		void toastInner.offsetWidth;
+		toastInner.dataset.state = 'in';
+		// Under the item, centred on it, but never past the header's edges
+		const at = box(item);
+		const below = item.getBoundingClientRect().bottom - header.getBoundingClientRect().top;
+		const width = toastInner.offsetWidth;
+		const left = Math.max(16, Math.min(at.center - width / 2, header.clientWidth - width - 16));
+		toast.style.transform = `translate(${left}px, ${Math.max(lineY, below) + 12}px)`;
+		showFor = ms;
+		hideSoon(ms);
+	}
+
+	toastInner.addEventListener('pointerenter', () => clearTimeout(hideTimer));
+	toastInner.addEventListener('pointerleave', () => hideSoon(Math.min(showFor, 1500)));
+
+	for (const link of header.querySelectorAll<HTMLAnchorElement>('[data-copy]')) {
+		link.addEventListener('click', async (e) => {
+			// If the clipboard isn't available (or refuses), the link does its normal thing: a new email
+			if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || !navigator.clipboard) return;
+			e.preventDefault();
+			const value = link.dataset.copy!;
+			try {
+				await navigator.clipboard.writeText(value);
+				showToast(link, { icon: 'tick', title: 'Email copied', body: [value] }, 2400);
+			} catch {
+				location.href = link.href;
+			}
+		});
+	}
+
+	for (const button of header.querySelectorAll<HTMLButtonElement>('[data-wip]')) {
+		const wip = JSON.parse(button.dataset.wip!);
+		button.addEventListener('click', () => {
+			const link = Object.assign(document.createElement('a'), { href: wip.href, target: '_blank', rel: 'noopener noreferrer', textContent: wip.link });
+			showToast(button, { icon: 'clock', title: wip.title, body: [wip.before, link, wip.after] }, 4000);
+		});
+	}
 
 	// Going home: the hero's dark sweeps in from the "AJ." corner, then the hero loads
 	// (and its name plays its intro again — a natural "welcome back").

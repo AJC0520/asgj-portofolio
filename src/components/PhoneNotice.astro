@@ -1,0 +1,126 @@
+---
+// On a phone: a small note that the site isn't made for small screens yet, sliding up from the bottom shortly after
+// the page opens. Dismissed with "Got it", and shown once per visit (remembered for the browser tab's session).
+---
+
+<aside class="phone-notice" data-phone-notice aria-labelledby="phone-notice-title" hidden>
+	<span class="icon" aria-hidden="true">🚧</span>
+	<div class="text">
+		<p class="title" id="phone-notice-title">Not made for phones yet</p>
+		<p>This site is a work in progress and works best on a bigger screen. You're still welcome to look around!</p>
+	</div>
+	<button type="button" data-phone-notice-close>Got it</button>
+</aside>
+
+<style>
+	.phone-notice {
+		position: fixed;
+		left: 12px;
+		right: 12px;
+		bottom: max(12px, env(safe-area-inset-bottom));
+		z-index: 200;
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr);
+		gap: 10px 12px;
+		align-items: start;
+		padding: 16px;
+		border-radius: 16px;
+		background: #f4efe1;
+		color: #04151f;
+		font-family: var(--font-inter-tight);
+		font-size: 14px;
+		line-height: 1.4;
+		box-shadow: 0 16px 40px -12px rgba(0, 0, 0, 0.55);
+		animation: notice-in 420ms cubic-bezier(0.165, 0.84, 0.44, 1) both;
+	}
+
+	.phone-notice[hidden] {
+		display: none;
+	}
+
+	.phone-notice[data-leaving] {
+		animation: notice-out 260ms ease-in both;
+	}
+
+	/* Slides up from below the screen; leaves the same way */
+	@keyframes notice-in {
+		from {
+			transform: translateY(calc(100% + 24px));
+		}
+	}
+
+	@keyframes notice-out {
+		to {
+			transform: translateY(calc(100% + 24px));
+		}
+	}
+
+	.icon {
+		font-size: 22px;
+		line-height: 1;
+	}
+
+	.text p {
+		margin: 0;
+	}
+
+	.title {
+		margin-bottom: 2px !important;
+		font-weight: 700;
+		font-size: 15px;
+	}
+
+	button {
+		grid-column: 2;
+		justify-self: start;
+		padding: 9px 18px;
+		border: 0;
+		border-radius: 999px;
+		background: #04151f;
+		color: #f4efe1;
+		font: inherit;
+		font-weight: 600;
+		cursor: pointer;
+	}
+
+	button:focus-visible {
+		outline: 2px solid #04151f;
+		outline-offset: 3px;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.phone-notice,
+		.phone-notice[data-leaving] {
+			animation: none;
+		}
+	}
+</style>
+
+<script>
+	const notice = document.querySelector<HTMLElement>('[data-phone-notice]')!;
+	const KEY = 'phone-notice-seen';
+	const PHONE = matchMedia('(max-width: 700px)').matches;
+	const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+	let seen = false;
+	try {
+		seen = sessionStorage.getItem(KEY) === '1';
+	} catch {}
+
+	if (PHONE && !seen) {
+		// After the page has had a moment to show itself
+		setTimeout(() => (notice.hidden = false), 1200);
+
+		notice.querySelector('[data-phone-notice-close]')!.addEventListener('click', () => {
+			try {
+				sessionStorage.setItem(KEY, '1');
+			} catch {}
+			if (reduceMotion) {
+				notice.hidden = true;
+				return;
+			}
+			notice.toggleAttribute('data-leaving', true);
+			notice.addEventListener('animationend', () => (notice.hidden = true), { once: true });
+		});
+	}
+</script>

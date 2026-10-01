@@ -67,24 +67,6 @@ const projects = ([
 		vibe: 'beer',
 		slug: 'olsalget',
 	},
-	{
-		year: '2025',
-		name: 'Project three',
-		description: 'Short description of the project: what it does and what you learned making it.',
-		tags: ['Tag', 'Tag', 'Tag'],
-		href: undefined,
-		accent: 'var(--color-dusty-olive)',
-		onAccent: '#f4efe1',
-	},
-	{
-		year: '2024',
-		name: 'Project four',
-		description: 'Short description of the project: what it does and what you learned making it.',
-		tags: ['Tag'],
-		href: undefined,
-		accent: 'var(--color-dry-sage)',
-		onAccent: 'var(--color-charcoal-brown)',
-	},
 ] as Project[]).map((project) => ({
 	...project,
 	slug: project.slug ?? project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
@@ -147,6 +129,8 @@ const projects = ([
 					))
 				}
 			</ol>
+
+			<p class="more">More to come. This page is a work in progress.</p>
 		</div>
 
 		<!-- One project at a time -->
@@ -256,6 +240,15 @@ const projects = ([
 		color: var(--on-accent, var(--cream));
 		/* The back button's full-width strip must not spill into the list pane next to it */
 		overflow-x: clip;
+	}
+
+	/* Under the list: a quiet note that the list will grow */
+	.more {
+		margin: 28px 0 0;
+		font-size: 14px;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		opacity: 0.6;
 	}
 
 	h2 {

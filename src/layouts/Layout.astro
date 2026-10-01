@@ -2,6 +2,7 @@
 import { Font } from 'astro:assets';
 import CursorBlob from '../components/CursorBlob.astro';
 import Header from '../components/Header.astro';
+import PhoneNotice from '../components/PhoneNotice.astro';
 
 interface Props {
 	title?: string;
@@ -71,6 +72,7 @@ const ogImage = Astro.site ? new URL('/og.png', Astro.site).href : undefined;
 		<Header />
 		<slot />
 		<CursorBlob />
+		<PhoneNotice />
 	</body>
 </html>
 

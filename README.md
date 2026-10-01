@@ -2,13 +2,28 @@
 
 Personal portfolio site for Asgeir Jacobsen, Informatics student at NTNU. Built with [Astro](https://astro.build), no UI framework, and almost no dependencies. The motion is written by hand in CSS, canvas and SVG.
 
+The site is a work in progress: more projects are on the way, the CV isn't up yet, and it isn't made for phones yet (phone visitors get a small notice saying so).
+
 ## Highlights
 
 - **Type-built name.** The name in the hero is drawn on a canvas as a grid of small monospace characters, clipped to the letter shapes. The characters scramble in from left to right, flicker now and then, and scramble around the cursor.
 - **Name → heading morph.** As you scroll, the name's characters break loose, drift down and condense into the About heading. It's tied to the scroll position, so scrolling back up reverses it.
 - **Tromsø at night.** The hero background is a faint street map of Tromsø built from OpenStreetMap data. A small light drives a random route through the streets every few seconds.
 - **GitHub activity easter egg.** Hovering the GitHub icon reveals the real contribution calendar, fetched at build time, in a wave that comes out of the icon.
-- **Small details.** A cursor blob that trails the pointer and a scroll hint. `prefers-reduced-motion` is respected everywhere, and animations pause when they are off screen.
+- **Projects.** A list of coloured bands, each with its own texture. Clicking one slides its project page in from the right, and every project page is designed around the project itself (see [Projects](#projects)).
+- **Small details.** A cursor blob that trails the pointer, a navigation underline that turns into an arrow toward the hovered item, and a Contact link that copies the email address. `prefers-reduced-motion` is respected everywhere, and animations pause when they are off screen.
+
+## Projects
+
+The list and the sliding project pane live in `src/components/Projects.astro`. Each project there has a year, name, description, tags (with logos from `src/components/projects/logos.ts`), links, its colours (`accent` and `onAccent`), a `vibe` for its row's texture, and optionally its own page component. Each project has its own address (`#projects/<slug>`), so links and the back button work.
+
+| Project | Page | Look |
+| :-- | :-- | :-- |
+| This website | `projects/ThisWebsite.astro` | Live miniatures of the site's own effects (`projects/this-website/`) |
+| KartTracker | `projects/KartTracker.astro` | A game menu: mode select, laps, a spinnable track wheel (`projects/kart-tracker/`) |
+| Når stenger ølsalget? | `projects/Olsalget.astro` | A glass of beer: foam on top, an animated group chat, the 17 May mode (`projects/olsalget/`) |
+
+To add a project: add an entry to the list in `Projects.astro`. Without a `component` it gets a simple generic page; to give it its own, make a component in `src/components/projects/` (the existing ones show the pattern) and set `component`. Screenshots go in `src/assets/` so Astro can optimise them.
 
 ## Colour palette
 
@@ -39,7 +54,7 @@ A second palette for the Projects section, one colour per project (the `accent` 
 | Ebony | `#414833` | `--color-ebony` |
 | Charcoal Brown | `#333d29` | `--color-charcoal-brown` |
 
-Light colours (Camel, Khaki Beige, Dry Sage, Dry Sage 2) need dark text, like Charcoal Brown; the rest work with the cream text.
+Light colours (Camel, Khaki Beige, Dry Sage, Dry Sage 2) need dark text, like Charcoal Brown; the rest work with the cream text. A project can also use a colour of its own when it has one: Når stenger ølsalget? uses the beer amber of the real site (`#f2ae2e`, dark text `#251c1c`).
 
 A section can also tint the fixed header while it's underneath it: `data-header-color="var(--color-…)"`.
 
@@ -93,22 +108,32 @@ To show a different area, change `BBOX` in `scripts/build-map.mjs`, then run bot
 
 ```text
 public/
-  tromso-map.svg        Street map line art (generated)
-  tromso-routes.json    Car routes (generated)
+  tromso-map.svg          Street map line art (generated)
+  tromso-routes.json      Car routes (generated)
 scripts/
-  build-map.mjs         OpenStreetMap → SVG
-  build-routes.mjs      SVG → drivable routes
+  build-map.mjs           OpenStreetMap → SVG
+  build-routes.mjs        SVG → drivable routes
 src/
-  layouts/Layout.astro  <head>, metadata, global styles, cursor blob
-  pages/index.astro     The page: hero and About section in a card deck
+  layouts/Layout.astro    <head>, metadata, palette, global styles; header, cursor blob and phone notice
+  pages/index.astro       The page: hero, About and Projects
+  assets/                 Images, optimised at build time (portrait, project screenshots)
+  scripts/sweep.ts        The colour sweep between pages
   components/
-    Hero.astro          Top bar, intro, scroll hint, map background
-    Name.astro          Canvas name built from characters
-    CardDeck.astro      Scroll-driven card-deck transition
-    MapTraffic.astro    The light driving through the map
-    ActivityGrid.astro  GitHub contribution calendar easter egg
-    CursorBlob.astro    Cursor follower
-    About.astro         About section (placeholder content)
+    Header.astro          Navigation, profile links, Contact (copies the email), the CV note
+    Hero.astro            Intro, scroll hint, map background
+    Name.astro            Canvas name built from characters
+    NameMorph.astro       Scroll transition from the name to the About heading
+    MapCanvas.astro       Tromsø street map and the light driving through it
+    MapSpotlight.astro    The cursor as a torch over the map
+    About.astro           About section
+    CharHeading.astro     Headings with a character grid behind them
+    CharPortrait.astro    The portrait drawn in characters
+    ActivityGrid.astro    GitHub contribution calendar easter egg
+    CursorBlob.astro      Cursor follower
+    PhoneNotice.astro     "Not made for phones yet" note on small screens
+    Projects.astro        Project list and the sliding project pane
+    projects/             One page component per project, plus its parts in a folder of its own
+    archive/              Earlier experiments, kept for reference (not used)
 ```
 
 ## Deploying
@@ -126,4 +151,6 @@ The source code is licensed under the [MIT License](LICENSE): feel free to learn
 ## Credits
 
 - Map data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, available under the ODbL.
-- Typeface: [Inter Tight](https://fonts.google.com/specimen/Inter+Tight) (SIL Open Font License).
+- Typefaces: [Inter Tight](https://fonts.google.com/specimen/Inter+Tight) and [Bowlby One SC](https://fonts.google.com/specimen/Bowlby+One+SC) (KartTracker's logo), both under the SIL Open Font License.
+- Tool logos: [Simple Icons](https://simpleicons.org) (CC0).
+- Holiday data on the Når stenger ølsalget? page comes from the real app, which uses [webapi.no](https://webapi.no).
