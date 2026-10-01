@@ -220,7 +220,12 @@ const projects = ([
 
 	/* ——— List ——— */
 
+	/* One set of columns for the whole list (rows use subgrid), so they line up even though the tags
+	   column sizes to the widest tag list: every technology shows on one line */
 	.projects {
+		display: grid;
+		grid-template-columns: 64px minmax(0, 1.2fr) minmax(0, 1fr) max-content 32px;
+		column-gap: 24px;
 		margin: 0;
 		padding: 0;
 		list-style: none;
@@ -228,6 +233,9 @@ const projects = ([
 	}
 
 	.projects li {
+		display: grid;
+		grid-column: 1 / -1;
+		grid-template-columns: subgrid;
 		border-bottom: 1px solid rgba(244, 239, 225, 0.2);
 	}
 
@@ -235,10 +243,9 @@ const projects = ([
 		position: relative;
 		isolation: isolate;
 		display: grid;
-		/* The tags column sizes to its content, so every technology shows on one line */
-		grid-template-columns: 64px minmax(0, 1.2fr) minmax(0, 1fr) max-content 32px;
+		grid-column: 1 / -1;
+		grid-template-columns: subgrid;
 		align-items: baseline;
-		gap: 24px;
 		width: 100%;
 		padding: 22px 12px;
 		border: 0;
@@ -437,6 +444,11 @@ const projects = ([
 	}
 
 	@media (max-width: 760px) {
+		.projects,
+		.projects li {
+			display: block;
+		}
+
 		.row {
 			grid-template-columns: minmax(0, 1fr) 24px;
 			gap: 6px 12px;
