@@ -1,0 +1,361 @@
+/* Asgard's UI. Deliberately plain for now: placeholder styling to be designed later. */
+
+.asgard-loader,
+.asgard-town {
+	--asgard-ink: #f3ecd8;
+	--asgard-panel: rgba(18, 24, 20, 0.92);
+	--asgard-accent: #e3b34c;
+
+	position: fixed;
+	inset: 0;
+	color: var(--asgard-ink);
+	font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+.asgard-loader h1,
+.asgard-loader p,
+.asgard-town p,
+.asgard-menu h2 {
+	margin: 0;
+}
+
+kbd {
+	padding: 1px 6px;
+	border: 1px solid rgba(243, 236, 216, 0.4);
+	border-radius: 4px;
+	font-family: ui-monospace, monospace;
+	font-size: 0.85em;
+}
+
+.asgard-button {
+	display: inline-block;
+	padding: 12px 22px;
+	text-decoration: none;
+	border: 0;
+	border-radius: 8px;
+	background: var(--asgard-accent);
+	color: #1b1b1b;
+	font: inherit;
+	font-weight: 700;
+	cursor: pointer;
+}
+
+.asgard-button.small {
+	padding: 7px 12px;
+	font-size: 14px;
+}
+
+.asgard-button:focus-visible {
+	outline: 2px solid var(--asgard-ink);
+	outline-offset: 3px;
+}
+
+.asgard-button kbd {
+	border-color: rgba(0, 0, 0, 0.3);
+}
+
+/* ——— Loading screen ——— */
+
+.asgard-loader {
+	z-index: 10;
+	display: grid;
+	place-items: center;
+	padding: 24px;
+	background: radial-gradient(ellipse at 50% 38%, #26452d, #0f1a12 72%);
+	transition:
+		opacity 460ms cubic-bezier(0.165, 0.84, 0.44, 1),
+		transform 460ms cubic-bezier(0.165, 0.84, 0.44, 1);
+}
+
+/* Done: the screen lifts away and the town is there underneath */
+.asgard-loader.leaving {
+	opacity: 0;
+	transform: scale(1.04);
+	pointer-events: none;
+}
+
+.asgard-loader-card {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 28px;
+	animation: asgard-rise 700ms cubic-bezier(0.165, 0.84, 0.44, 1) both;
+}
+
+@keyframes asgard-rise {
+	from {
+		opacity: 0;
+		transform: translateY(14px);
+	}
+}
+
+.asgard-loader-title {
+	color: var(--asgard-accent);
+	font-family: ui-monospace, monospace;
+	font-size: clamp(56px, 12vw, 112px);
+	font-weight: 800;
+	line-height: 1;
+	letter-spacing: -0.04em;
+	text-shadow:
+		0.04em 0.04em 0 #0f1a12,
+		0.07em 0.07em 0 rgba(0, 0, 0, 0.35);
+}
+
+/* The path: dirt tiles laid one by one, with the wizard at the front */
+.asgard-path {
+	position: relative;
+	width: 320px; /* ten tiles of 32px */
+	max-width: 100%;
+	height: 32px;
+	padding: 6px;
+	box-sizing: content-box;
+	margin: 0 -6px;
+	border: 3px solid #0f1a12;
+	border-radius: 4px;
+	background: #1b2a1b;
+	box-shadow: 0 5px 0 rgba(0, 0, 0, 0.35);
+}
+
+.asgard-path-tiles {
+	display: flex;
+	width: 100%;
+	height: 100%;
+}
+
+.asgard-path-tiles span {
+	flex: none;
+	image-rendering: pixelated;
+	opacity: 0;
+	transform: scale(0.6);
+	transition:
+		opacity 260ms cubic-bezier(0.165, 0.84, 0.44, 1),
+		transform 260ms cubic-bezier(0.165, 0.84, 0.44, 1);
+}
+
+.asgard-path-tiles span.on {
+	opacity: 1;
+	transform: none;
+}
+
+.asgard-walker {
+	position: absolute;
+	top: 6px;
+	left: 6px;
+	will-change: transform;
+}
+
+.asgard-wizard {
+	display: block;
+	image-rendering: pixelated;
+	transform-origin: 50% 90%;
+	animation: asgard-walk 380ms ease-in-out infinite alternate;
+}
+
+/* A little rock from foot to foot, as the characters in the town do */
+@keyframes asgard-walk {
+	from {
+		transform: translateY(0) rotate(-7deg);
+	}
+	to {
+		transform: translateY(-3px) rotate(7deg);
+	}
+}
+
+.asgard-loader-text {
+	display: flex;
+	align-items: baseline;
+	gap: 16px;
+	min-height: 1.4em;
+	font-family: ui-monospace, monospace;
+	font-size: 15px;
+}
+
+.asgard-stage {
+	animation: asgard-stage 320ms cubic-bezier(0.165, 0.84, 0.44, 1) both;
+}
+
+@keyframes asgard-stage {
+	from {
+		opacity: 0;
+		transform: translateY(6px);
+	}
+}
+
+.asgard-percent {
+	min-width: 3ch;
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+	opacity: 0.6;
+}
+
+/* Fireflies drifting over the dark: slow, small and few */
+.asgard-fireflies {
+	position: absolute;
+	inset: 0;
+	overflow: hidden;
+	pointer-events: none;
+}
+
+.asgard-fireflies span {
+	position: absolute;
+	left: calc(6% + var(--i) * 10.5%);
+	top: calc(18% + var(--i) * 8%);
+	width: 4px;
+	height: 4px;
+	background: var(--asgard-accent);
+	box-shadow: 0 0 8px 2px rgba(227, 179, 76, 0.5);
+	opacity: 0;
+	animation: asgard-float 6s ease-in-out infinite;
+	animation-delay: calc(var(--i) * -0.9s);
+}
+
+@keyframes asgard-float {
+	0%,
+	100% {
+		opacity: 0;
+		transform: translate(0, 0);
+	}
+	30%,
+	70% {
+		opacity: 0.9;
+	}
+	50% {
+		transform: translate(14px, -22px);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.asgard-wizard,
+	.asgard-fireflies span,
+	.asgard-loader-card,
+	.asgard-stage {
+		animation: none;
+	}
+
+	.asgard-fireflies {
+		display: none;
+	}
+
+	.asgard-loader,
+	.asgard-path-tiles span {
+		transition: none;
+	}
+}
+
+/* ——— Town ——— */
+
+.asgard-town {
+	background: #1b2a1b;
+}
+
+.asgard-canvas {
+	position: absolute;
+	inset: 0;
+}
+
+.asgard-hud {
+	position: absolute;
+	top: 16px;
+	left: 16px;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+.asgard-clock {
+	padding: 6px 12px;
+	border-radius: 8px;
+	background: var(--asgard-panel);
+	font-family: ui-monospace, monospace;
+	font-size: 15px;
+}
+
+.asgard-hint {
+	position: absolute;
+	bottom: 24px;
+	left: 50%;
+	padding: 10px 16px;
+	border-radius: 8px;
+	background: var(--asgard-panel);
+	transform: translateX(-50%);
+	white-space: nowrap;
+}
+
+/* The controls, small in the corner */
+.asgard-controls {
+	position: absolute;
+	bottom: 24px;
+	left: 24px;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px 5px;
+	padding: 8px 12px;
+	border-radius: 8px;
+	background: var(--asgard-panel);
+	font-size: 13px;
+	opacity: 0.85;
+}
+
+.asgard-debug {
+	position: absolute;
+	top: 16px;
+	right: 16px;
+	display: flex;
+	flex-direction: column;
+	padding: 8px 12px;
+	border-radius: 8px;
+	background: rgba(0, 0, 0, 0.75);
+	color: #ffff66;
+	font-family: ui-monospace, monospace;
+	font-size: 14px;
+	pointer-events: none;
+}
+
+.asgard-debug span {
+	opacity: 0.7;
+}
+
+/* ——— Menu ——— */
+
+.asgard-menu {
+	position: absolute;
+	right: 24px;
+	bottom: 24px;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 12px;
+	width: min(360px, calc(100vw - 48px));
+	padding: 20px;
+	border: 2px solid var(--asgard-accent);
+	border-radius: 12px;
+	background: var(--asgard-panel);
+	line-height: 1.45;
+}
+
+.asgard-menu h2 {
+	font-size: 22px;
+}
+
+.asgard-menu dl {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	margin: 0;
+}
+
+.asgard-menu dt {
+	font-size: 12px;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	opacity: 0.65;
+}
+
+.asgard-menu dd {
+	margin: 0;
+}
+
+.asgard-muted {
+	opacity: 0.7;
+}

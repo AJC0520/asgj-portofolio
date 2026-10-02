@@ -1,6 +1,6 @@
 # Asgeir Jacobsen — Portfolio
 
-Personal portfolio site for Asgeir Jacobsen, Informatics student at NTNU. Built with [Astro](https://astro.build), no UI framework, and almost no dependencies. The motion is written by hand in CSS, canvas and SVG.
+Personal portfolio site for Asgeir Jacobsen, Informatics student at NTNU. Built with [Astro](https://astro.build), no UI framework (apart from the separate [Asgard](#asgard) page), and almost no dependencies. The motion is written by hand in CSS, canvas and SVG.
 
 The site is a work in progress: more projects are on the way, the CV isn't up yet, and it isn't made for phones yet (phone visitors get a small notice saying so).
 
@@ -24,6 +24,23 @@ The list and the sliding project pane live in `src/components/Projects.astro`. E
 | Når stenger ølsalget? | `projects/Olsalget.astro` | A glass of beer: foam on top, an animated group chat, the 17 May mode (`projects/olsalget/`) |
 
 To add a project: add an entry to the list in `Projects.astro`. Without a `component` it gets a simple generic page; to give it its own, make a component in `src/components/projects/` (the existing ones show the pattern) and set `component`. Screenshots go in `src/assets/` so Astro can optimise them.
+
+## Asgard
+
+A separate experiment at `/asgard`: a 2D top-down town for keeping track of AI agents. It opens straight into a [Phaser 3](https://phaser.io) world you walk around with WASD or the arrow keys, after a short loading screen. Stand next to an agent or a house and press E for a menu with the agent's role, current task and what it's doing right now. Agents walk around town on their own daily schedules.
+
+It's the only part of the site that uses React (through `@astrojs/react`) and Phaser, and both load only on that page. Phaser itself only downloads when you enter the town.
+
+The town starts empty. Everything in it is set in `src/asgard/config/`:
+
+| File | What it holds |
+| :-- | :-- |
+| `world.ts` | Map size, zoom (`'fit'` shows the whole town, a number gives a close-up that follows the player), the border fence, the player, the clock (real or a fast simulated day), paths and props, and `DEBUG` (coordinates under the mouse, a grid, reach circles and agent routes) |
+| `buildings.ts` | Houses: `id`, `name`, `x`/`y` (top-left), `style`, the `agent` who lives there |
+| `agents.ts` | Agents: `name`, `role`, `task`, `spawn` (a house id or `{ x, y }`), `sprite`, and a `schedule` of `{ time: '07:45', destination: 'mayors-house', action: 'report' }` (or `destinationX`/`destinationY`, with optional `via` waypoints) |
+| `assets.ts` | Sprite sheets, house styles, props and characters, the only place that knows about the art |
+
+Positions are in world pixels, with 16 × 16 tiles. The art is Kenney's [Tiny Town](https://kenney.nl/assets/tiny-town) and [Tiny Dungeon](https://kenney.nl/assets/tiny-dungeon) (CC0), in `public/asgard/assets/`. The types are in `src/asgard/types.ts`, the engine in `src/asgard/engine/` and the React screens in `src/asgard/ui/`.
 
 ## Colour palette
 
@@ -116,6 +133,8 @@ scripts/
 src/
   layouts/Layout.astro    <head>, metadata, palette, global styles; header, cursor blob and phone notice
   pages/index.astro       The page: hero, About and Projects
+  pages/asgard.astro      Asgard, the agent town (React + Phaser)
+  asgard/                 Asgard's config, engine and React screens
   assets/                 Images, optimised at build time (portrait, project screenshots)
   scripts/sweep.ts        The colour sweep between pages
   components/
@@ -153,4 +172,5 @@ The source code is licensed under the [MIT License](LICENSE): feel free to learn
 - Map data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, available under the ODbL.
 - Typefaces: [Inter Tight](https://fonts.google.com/specimen/Inter+Tight) and [Bowlby One SC](https://fonts.google.com/specimen/Bowlby+One+SC) (KartTracker's logo), both under the SIL Open Font License.
 - Tool logos: [Simple Icons](https://simpleicons.org) (CC0).
+- Asgard's pixel art: [Kenney](https://kenney.nl) Tiny Town and Tiny Dungeon (CC0).
 - Holiday data on the Når stenger ølsalget? page comes from the real app, which uses [webapi.no](https://webapi.no).

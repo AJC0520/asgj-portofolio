@@ -1,0 +1,39 @@
+---
+// One picture from Asgard's sprite sheets (Kenney Tiny Town / Tiny Dungeon, 16 × 16 px frames, 12 per row),
+// shown crisp at a whole-number scale. The frames and sheets come from Asgard's own config (src/asgard/config/assets.ts).
+import { SHEETS, type SheetKey } from '../../../asgard/config/assets';
+
+interface Props {
+	sheet: SheetKey;
+	frame: number;
+	scale?: number;
+	label?: string; // alt text; leave out when it is decoration
+}
+
+const { sheet, frame, scale = 3, label } = Astro.props;
+const { url, frameWidth, frameHeight } = SHEETS[sheet];
+const COLUMNS = 12;
+const ROWS = 11;
+const col = frame % COLUMNS;
+const row = Math.floor(frame / COLUMNS);
+const px = frameWidth * scale;
+const style = [
+	`width:${px}px`,
+	`height:${frameHeight * scale}px`,
+	`background-image:url(${url})`,
+	`background-size:${COLUMNS * px}px ${ROWS * frameHeight * scale}px`,
+	`background-position:-${col * px}px -${row * frameHeight * scale}px`,
+].join(';');
+---
+
+<span class="sprite" style={style} role={label ? 'img' : undefined} aria-label={label} aria-hidden={label ? undefined : 'true'}
+></span>
+
+<style>
+	.sprite {
+		display: inline-block;
+		flex: none;
+		background-repeat: no-repeat;
+		image-rendering: pixelated;
+	}
+</style>

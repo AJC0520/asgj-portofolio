@@ -1,0 +1,32 @@
+---
+// Asgard: a 2D town for keeping track of AI agents. A page of its own (not the portfolio's layout): the whole screen
+// belongs to the React app in src/asgard/. React and Phaser only load on this page.
+import AsgardApp from '../asgard/ui/AsgardApp';
+
+// The town is closed for now (under construction): send direct visits back to the project's page
+return Astro.redirect('/#projects/asgard');
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width" />
+		<link rel="icon" href="/favicon.ico" sizes="48x48" />
+		<title>Asgard</title>
+		<meta name="description" content="Asgard: a small 2D town where AI agents live, work and follow their daily schedules." />
+	</head>
+	<body>
+		<AsgardApp client:only="react" />
+	</body>
+</html>
+
+<style is:global>
+	html,
+	body {
+		margin: 0;
+		height: 100%;
+		background: #0f1a12;
+		overflow: hidden;
+	}
+</style>

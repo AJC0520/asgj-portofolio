@@ -8,6 +8,7 @@
 // simple placeholder view.
 import type { AstroComponentFactory } from 'astro/runtime/server/index.js';
 import { logoFor, logos } from './projects/logos';
+import Asgard from './projects/Asgard.astro';
 import KartTracker from './projects/KartTracker.astro';
 import Olsalget from './projects/Olsalget.astro';
 import ThisWebsite from './projects/ThisWebsite.astro';
@@ -21,8 +22,8 @@ type Project = {
 	site?: string; // live version
 	accent: string;
 	onAccent: string;
-	brand?: 'karttracker'; // the name in the list uses the project's own logo style
-	vibe?: 'map' | 'race' | 'beer'; // the row's hover background (see "Row vibes" in the styles)
+	brand?: 'karttracker' | 'asgard'; // the name in the list uses the project's own logo style
+	vibe?: 'map' | 'race' | 'beer' | 'town'; // the row's hover background (see "Row vibes" in the styles)
 	slug?: string; // the address (#projects/<slug>); made from the name when not given
 	component?: AstroComponentFactory;
 };
@@ -67,6 +68,20 @@ const projects = ([
 		vibe: 'beer',
 		slug: 'olsalget',
 	},
+	{
+		year: '2026',
+		name: 'Asgard',
+		description:
+			'A small 2D town where AI agents live and work: they have houses and roles, and walk around on their own daily schedules.',
+		tags: ['Phaser', 'React', 'TypeScript', 'Astro'],
+		href: 'https://github.com/AJC0520/asgj-portofolio',
+		site: '/asgard',
+		accent: '#2b4a33', // the game's forest green
+		onAccent: '#f3ecd8',
+		component: Asgard,
+		brand: 'asgard',
+		vibe: 'town',
+	},
 ] as Project[]).map((project) => ({
 	...project,
 	slug: project.slug ?? project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
@@ -102,6 +117,8 @@ const projects = ([
 											TRACKER
 										</span>
 									</span>
+								) : project.brand === 'asgard' ? (
+									<span class="name brand-asgard">{project.name}</span>
 								) : (
 									<span class="name">{project.name}</span>
 								)}
@@ -361,6 +378,18 @@ const projects = ([
 		mask: linear-gradient(to left, #000, transparent 55%);
 	}
 
+
+	/* Asgard: the game's grass in two greens, a dirt path with worn dashes along the bottom and a few flowers.
+	   Hover: the ground scrolls sideways like a walk through town (the layer is one tile wider than the row for that) */
+	.row[data-vibe='town']::after {
+		right: -32px;
+		background:
+			linear-gradient(#b98d57, #b98d57) left bottom / 100% 8px no-repeat,
+			repeating-linear-gradient(90deg, rgba(15, 26, 18, 0.28) 0 6px, transparent 6px 16px) left bottom 2px / 100% 3px no-repeat,
+			radial-gradient(circle, rgba(227, 179, 76, 0.7) 1.5px, transparent 2px) 6px 5px / 80px 32px,
+			repeating-conic-gradient(rgba(255, 255, 255, 0.07) 0 25%, transparent 0 50%) 0 0 / 32px 32px;
+	}
+
 	.year,
 	.tags,
 	.meta {
@@ -402,6 +431,17 @@ const projects = ([
 		text-shadow:
 			0.045em 0.045em 0 #3b0000,
 			0.07em 0.07em 0.14em rgba(0, 0, 0, 0.4);
+	}
+
+	/* Asgard's title, as on its own landing page: monospace, gold, with a hard block shadow */
+	.brand-asgard {
+		color: #e3b34c;
+		font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+		font-weight: 800;
+		letter-spacing: -0.04em;
+		text-shadow:
+			0.04em 0.04em 0 #0f1a12,
+			0.07em 0.07em 0 rgba(0, 0, 0, 0.3);
 	}
 
 	.visually-hidden {
@@ -465,6 +505,10 @@ const projects = ([
 		.row[data-vibe='beer']:hover::after {
 			transform: translateY(-48px);
 		}
+
+			.row[data-vibe='town']:hover::after {
+				transform: translateX(-32px);
+			}
 
 		.row:hover .name {
 			transform: translateX(8px);
